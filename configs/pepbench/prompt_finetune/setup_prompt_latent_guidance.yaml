@@ -1,0 +1,12 @@
+dataset:
+  test:
+    class: PromptDataset
+    mmap_dir: /data/private/jdp/PepGLAD/datasets/train_valid/processed
+    specify_index: /data/private/jdp/PepGLAD/datasets/train_valid/processed/prompt_train_index.txt
+    backbone_only: false
+
+dataloader:
+  num_workers: 2
+  batch_size: 32
+
+backbone_only: false
