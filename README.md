@@ -1,3 +1,5 @@
+Build upon the official implementation of Xiangzhe
+
 # PepGLAD: Full-Atom Peptide Design with Geometric Latent Diffusion
 
 ![cover](./assets/cover.png)
