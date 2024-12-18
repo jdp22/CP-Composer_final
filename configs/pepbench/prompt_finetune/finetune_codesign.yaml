@@ -1,15 +1,22 @@
 dataset:
   train:
-    class: PromptDataset
-    mmap_dir: /data/private/jdp/PepGLAD/datasets/train_valid/processed
-    specify_index: /data/private/jdp/PepGLAD/datasets/train_valid/processed/prompt_train_index.txt
-    backbone_only: false
-    # cluster: ./datasets/train_valid/train.cluster
-    use_covariance_matrix: true
+    - class: PromptDataset
+      mmap_dir: /data/private/jdp/PepGLAD/datasets/train_valid/processed
+      specify_index: /data/private/jdp/PepGLAD/datasets/train_valid/processed/prompt_train_distance_index.txt
+      # specify_index: /data/private/jdp/PepGLAD/datasets/train_valid/processed/train_index.txt
+      backbone_only: false
+      # cluster: ./datasets/train_valid/train.cluster
+      use_covariance_matrix: true
+    - class: PromptDataset
+      mmap_dir: /data/private/jdp/PepGLAD/datasets/ProtFrag/processed
+      specify_index: /data/private/jdp/PepGLAD/datasets/ProtFrag/processed/prompt_distance_index.txt
+      backbone_only: false
+      use_covariance_matrix: true
   valid:
     class: PromptDataset
     mmap_dir: /data/private/jdp/PepGLAD/datasets/train_valid/processed
-    specify_index: /data/private/jdp/PepGLAD/datasets/train_valid/processed/prompt_valid_index.txt
+    specify_index: /data/private/jdp/PepGLAD/datasets/train_valid/processed/prompt_valid_distance_index.txt
+    # specify_index: /data/private/jdp/PepGLAD/datasets/train_valid/processed/valid_index.txt
     backbone_only: false
     use_covariance_matrix: true
 
@@ -20,7 +27,7 @@ dataloader:
     class: DynamicBatchWrapper
     complexity: n**2
     # ubound_per_batch: 60000  # batch size ~32
-    ubound_per_batch: 2000
+    ubound_per_batch: 2500
 
 trainer:
   class: LDMTrainer
@@ -28,7 +35,7 @@ trainer:
   config:
     max_epoch: 1000 # the best checkpoint should be obtained at around epoch 380
     save_topk: 10
-    val_freq: 10
+    val_freq: 3
     save_dir: ./ckpts/LDM_codesign
     patience: 10
     metric_min_better: true

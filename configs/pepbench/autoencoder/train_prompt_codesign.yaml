@@ -1,17 +1,18 @@
 dataset:
   train:
-    - class: CoDesignDataset
+    - class: PromptDataset
       mmap_dir: /data/private/jdp/PepGLAD/datasets/train_valid/processed
-      specify_index: /data/private/jdp/PepGLAD/datasets/train_valid/processed/train_index.txt
+      specify_index: /data/private/jdp/PepGLAD/datasets/train_valid/processed/prompt_train_distance_index.txt
       backbone_only: false
       cluster: /data/private/jdp/PepGLAD/datasets/train_valid/train.cluster
-    - class: CoDesignDataset
+    - class: PromptDataset
       mmap_dir: /data/private/jdp/PepGLAD/datasets/ProtFrag/processed
+      specify_index: /data/private/jdp/PepGLAD/datasets/ProtFrag/processed/prompt_distance_index.txt
       backbone_only: false
   valid:
-    class: CoDesignDataset
+    class: PromptDataset
     mmap_dir: /data/private/jdp/PepGLAD/datasets/train_valid/processed
-    specify_index: /data/private/jdp/PepGLAD/datasets/train_valid/processed/valid_index.txt
+    specify_index: /data/private/jdp/PepGLAD/datasets/train_valid/processed/prompt_valid_distance_index.txt
     backbone_only: false
 
 dataloader:
@@ -20,14 +21,14 @@ dataloader:
   wrapper:
     class: DynamicBatchWrapper
     complexity: n**2
-    ubound_per_batch: 3000 # batch size ~24
+    ubound_per_batch: 4000 # batch size ~24
 
 trainer:
-  class: AutoEncoderTrainer
+  class: Prompt_AutoEncoderTrainer
   config:
     max_epoch: 100
     save_topk: 10
-    save_dir: ./ckpts/autoencoder_codesign
+    save_dir: ./ckpts/prompt_autoencoder_codesign
     patience: 10
     metric_min_better: true
 
@@ -44,7 +45,7 @@ trainer:
       min_lr: 5.0e-6
 
 model:
-  class: AutoEncoder
+  class: Prompt_AutoEncoder
   embed_size: 128
   hidden_size: 128
   latent_size: 8

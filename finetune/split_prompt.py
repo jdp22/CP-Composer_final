@@ -26,6 +26,6 @@ def split(index_file,full_prompt_file,target_file):
     merged_df.reset_index().to_csv(target_file, sep="\t", index=False, header=False)
 
 if __name__ == '__main__':
-    split(index_file = "/data/private/jdp/PepGLAD/datasets/train_valid/processed/valid_index.txt",
-          full_prompt_file="/data/private/jdp/PepGLAD/datasets/train_valid/processed/prompts_all.txt",
-          target_file="/data/private/jdp/PepGLAD/datasets/train_valid/processed/prompt_valid_index.txt")
+    split(index_file = "/data/private/jdp/PepGLAD/datasets/train_valid/processed/train_index.txt",
+          full_prompt_file="/data/private/jdp/PepGLAD/datasets/train_valid/processed/prompts_distance.txt",
+          target_file="/data/private/jdp/PepGLAD/datasets/train_valid/processed/prompt_train_distance_index.txt")

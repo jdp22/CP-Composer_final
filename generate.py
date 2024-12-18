@@ -162,6 +162,9 @@ def main(args, opt_args):
     model.to(device)
     model.eval()
 
+    # adjust the strength of text gudiance
+    model.w = config['guidance_strength']
+
     # load data
     _, _, test_set = create_dataset(config['dataset'])
     test_loader = create_dataloader(test_set, config['dataloader'])

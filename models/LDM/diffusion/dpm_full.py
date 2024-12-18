@@ -31,6 +31,7 @@ class EpsilonNet(nn.Module):
             input_size,
             hidden_size,
             n_channel,
+            prompt_size,
             n_layers=3,
             edge_size=0,
             n_rbf=0,
@@ -44,7 +45,7 @@ class EpsilonNet(nn.Module):
         edge_embed_size = hidden_size // 4
         pos_embed_size, seg_embed_size = input_size, input_size
         # enc_input_size = input_size + seg_embed_size + 3 + (pos_embed_size if additional_pos_embed else 0)
-        enc_input_size = input_size + 3 + (pos_embed_size if additional_pos_embed else 0)
+        enc_input_size = input_size + 3 + (pos_embed_size if additional_pos_embed else 0)+prompt_size
         self.encoder = AMEGNN(
             enc_input_size, hidden_size, hidden_size, n_channel,
             channel_nf=atom_embed_size, radial_nf=hidden_size,
@@ -56,7 +57,7 @@ class EpsilonNet(nn.Module):
         self.edge_embedding = nn.Embedding(2, edge_embed_size)
 
     def forward(
-            self, H_noisy, X_noisy, position_embedding, ctx_edges, inter_edges,
+            self, H_noisy, X_noisy,prompt, position_embedding, ctx_edges, inter_edges,
             atom_embeddings, atom_weights, mask_generate, beta,
             ctx_edge_attr=None, inter_edge_attr=None):
         """
@@ -74,10 +75,10 @@ class EpsilonNet(nn.Module):
         # seg_embed = self.segment_embedding(mask_generate.long())
         if position_embedding is None:
             # in_feat = torch.cat([H_noisy, t_embed, seg_embed], dim=-1) # [N, hidden_size * 2 + 3]
-            in_feat = torch.cat([H_noisy, t_embed], dim=-1) # [N, hidden_size * 2 + 3]
+            in_feat = torch.cat([H_noisy, t_embed,prompt], dim=-1) # [N, hidden_size * 2 + 3]
         else:
             # in_feat = torch.cat([H_noisy, t_embed, self.pos_embed2latent(position_embedding), seg_embed], dim=-1) # [N, hidden_size * 3 + 3]
-            in_feat = torch.cat([H_noisy, t_embed, position_embedding], dim=-1) # [N, hidden_size * 3 + 3]
+            in_feat = torch.cat([H_noisy, t_embed, position_embedding,prompt], dim=-1) # [N, hidden_size * 3 + 3] TODO: concat the prompt here
         edges = torch.cat([ctx_edges, inter_edges], dim=-1)
         edge_embed = torch.cat([
             torch.zeros_like(ctx_edges[0]), torch.ones_like(inter_edges[0])
@@ -127,9 +128,9 @@ class FullDPM(nn.Module):
         dist_rbf_cutoff=7.0
     ):
         super().__init__()
-        self.eps_net = EpsilonNet(
-            latent_size, hidden_size, n_channel, n_layers=n_layers, edge_size=dist_rbf,
-            n_rbf=n_rbf, cutoff=cutoff, dropout=dropout, additional_pos_embed=additional_pos_embed)
+        # self.eps_net = EpsilonNet(
+        #     latent_size, hidden_size, n_channel, n_layers=n_layers, edge_size=dist_rbf,
+        #     n_rbf=n_rbf, cutoff=cutoff, dropout=dropout, additional_pos_embed=additional_pos_embed)
         if dist_rbf > 0:
             self.dist_rbf = RadialBasis(dist_rbf, dist_rbf_cutoff)
         self.num_steps = num_steps
@@ -362,7 +363,6 @@ class PromptDPM(FullDPM):
         additional_pos_embed=True,
         dist_rbf=0,
         dist_rbf_cutoff=7.0,
-        w = 10,
         text_encoder = 'MLP',):
         super().__init__( 
             latent_size,
@@ -388,18 +388,19 @@ class PromptDPM(FullDPM):
         #     n_rbf=n_rbf, cutoff=cutoff, dropout=dropout, additional_pos_embed=additional_pos_embed)
 
         self.text_encoder = text_encoder
-        
-        self.prompt_encoder_H = nn.Sequential(nn.Linear(768,256),
-                                            nn.ReLU(),
-                                            nn.Linear(256,8))
+        self.prompt_size = 768
+        self.eps_net = EpsilonNet(
+            latent_size, hidden_size,n_channel,prompt_size=8, n_layers=n_layers, edge_size=dist_rbf,
+            n_rbf=n_rbf, cutoff=cutoff, dropout=dropout, additional_pos_embed=additional_pos_embed)
+        self.prompt_encoder_H = nn.Linear(self.prompt_size,8)
         if text_encoder == 'Attention':
             self.attention_H = MultiheadAttention(768,4,kdim=8,vdim=8,batch_first=True)
             for param in self.attention_H.parameters():
                 param.requires_grad = True
 
-        self.w = w
         self.max_length = 150
-        self.p_con = 0.8
+        self.p_con = 0.5
+        self.balance = torch.nn.Parameter(torch.tensor([5.0],requires_grad=True))
 
         for param in self.eps_net.parameters():
             param.requires_grad = True
@@ -407,7 +408,7 @@ class PromptDPM(FullDPM):
             param.requires_grad = True
         
 
-    def forward(self, H_0, X_0,prompt, position_embedding, mask_generate, lengths, atom_embeddings, atom_mask, L=None, t=None, sample_structure=True, sample_sequence=True):
+    def forward(self, H_0, X_0, prompt, position_embedding, mask_generate, lengths, atom_embeddings, atom_mask, L=None, t=None, sample_structure=True, sample_sequence=True):
         # if L is not None:
         #     L = L / self.std
         batch_ids = self._get_batch_ids(mask_generate, lengths)
@@ -439,7 +440,6 @@ class PromptDPM(FullDPM):
         
         # Train a eps net with text guidance
         # prompt = prompt[batch_ids]
-
         if self.text_encoder == 'Attention':
             padding_mask = self.generate_padding_mask(batch_ids)
             sequence_H = self.organize_to_batches(H_noisy,batch_ids)
@@ -449,16 +449,16 @@ class PromptDPM(FullDPM):
             prompt_H = prompt_H[batch_ids]
 
             ## TODO: the update of X
-        
         elif self.text_encoder == 'MLP':
-            prompt_H = prompt[batch_ids]
-            prompted_H_noisy = self.prompt_encoder_H(prompt_H)+H_noisy
+            prompt_H = self.prompt_encoder_H(prompt[batch_ids])
+            
 
         if random.random()<self.p_con:
-            eps_H_pred, eps_X_pred= self.eps_net(prompted_H_noisy, X_noisy, position_embedding, ctx_edges, inter_edges, atom_embeddings, atom_mask.float(), mask_generate, beta,
+            eps_H_pred, eps_X_pred= self.eps_net(H_noisy, X_noisy,prompt_H, position_embedding, ctx_edges, inter_edges, atom_embeddings, atom_mask.float(), mask_generate, beta,
                     ctx_edge_attr=ctx_edge_attr, inter_edge_attr=inter_edge_attr)
         else:
-            eps_H_pred, eps_X_pred= self.eps_net(H_noisy, X_noisy, position_embedding, ctx_edges, inter_edges, atom_embeddings, atom_mask.float(), mask_generate, beta,
+            prompt_H = torch.zeros_like(prompt_H)
+            eps_H_pred, eps_X_pred= self.eps_net(H_noisy, X_noisy,prompt_H, position_embedding, ctx_edges, inter_edges, atom_embeddings, atom_mask.float(), mask_generate, beta,
                     ctx_edge_attr=ctx_edge_attr, inter_edge_attr=inter_edge_attr)
         loss_dict = {}
         
@@ -531,8 +531,9 @@ class PromptDPM(FullDPM):
             L: cholesky decomposition of the covariance matrix \Sigma=LL^T, (bs, 3, 3)
             energy_func: guide diffusion towards lower energy landscape
         """
-        # if L is not None:
+        # if L is not None: 
         #     L = L / self.std
+        self.w = 10
         batch_ids = self._get_batch_ids(mask_generate, lengths)
         X, centers = self._normalize_position(X, batch_ids, mask_generate, atom_mask, L)
         # print(X[0, 0])
@@ -573,10 +574,6 @@ class PromptDPM(FullDPM):
                 inter_edge_attr = self.dist_rbf(inter_edge_attr).view(inter_edges.shape[1], -1)
             else:
                 ctx_edge_attr, inter_edge_attr = None, None
-            eps_H, eps_X = self.eps_net(
-                H_t, X_t, position_embedding, ctx_edges, inter_edges, atom_embeddings, atom_mask.float(), mask_generate, beta,
-                ctx_edge_attr=ctx_edge_attr, inter_edge_attr=inter_edge_attr)
-            
             
             # Add text guidance
             # prompt = prompt[batch_ids]
@@ -588,15 +585,16 @@ class PromptDPM(FullDPM):
                 prompt_H = torch.mean(prompt_H,dim=1)
                 prompt_H = prompt_H[batch_ids]
             else:
-                prompt_H = prompt[batch_ids]
-
-            prompted_H_noisy = self.prompt_encoder_H(prompt_H)+H_t
-
-            ## TODO: Use the same eps_net
-            prompted_eps_H_pred, prompted_eps_X_pred = self.eps_net(prompted_H_noisy, X_t, position_embedding, ctx_edges, inter_edges, atom_embeddings, atom_mask.float(), mask_generate, beta,
+                prompt_H = self.prompt_encoder_H(prompt[batch_ids])
+            
+            eps_H, eps_X = self.eps_net(
+                H_t, X_t,torch.zeros_like(prompt_H), position_embedding, ctx_edges, inter_edges, atom_embeddings, atom_mask.float(), mask_generate, beta,
+                ctx_edge_attr=ctx_edge_attr, inter_edge_attr=inter_edge_attr)
+            prompted_eps_H_pred, prompted_eps_X_pred = self.eps_net(H_t, X_t,prompt_H, position_embedding, ctx_edges, inter_edges, atom_embeddings, atom_mask.float(), mask_generate, beta,
                     ctx_edge_attr=ctx_edge_attr, inter_edge_attr=inter_edge_attr)
             eps_H = (1+self.w)*prompted_eps_H_pred-self.w*eps_H
-
+            eps_X = (1+self.w)*prompted_eps_X_pred-self.w*eps_X
+            
             if energy_func is not None:
                 with torch.enable_grad():
                     cur_X_state = X_t.clone().double()

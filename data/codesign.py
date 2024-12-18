@@ -18,6 +18,54 @@ from transformers import AutoTokenizer, AutoModel
 
 model = AutoModel.from_pretrained("/data/private/jdp/scibert")
 tokz = AutoTokenizer.from_pretrained("/data/private/jdp/scibert")
+model.eval()
+
+# amino_acid_map = {
+#     'A': 1,  # Alanine
+#     'R': 2,  # Arginine
+#     'N': 3,  # Asparagine
+#     'D': 4,  # Aspartic acid
+#     'C': 5,  # Cysteine
+#     'E': 6,  # Glutamic acid
+#     'Q': 7,  # Glutamine
+#     'G': 8,  # Glycine
+#     'H': 9,  # Histidine
+#     'I': 10, # Isoleucine
+#     'L': 11, # Leucine
+#     'K': 12, # Lysine
+#     'M': 13, # Methionine
+#     'F': 14, # Phenylalanine
+#     'P': 15, # Proline
+#     'S': 16, # Serine
+#     'T': 17, # Threonine
+#     'W': 18, # Tryptophan
+#     'Y': 19, # Tyrosine
+#     'V': 20  # Valine
+# }
+
+amino_acid_map = {
+    'A': 'Alanine',
+    'R': 'Arginine',
+    'N': 'Asparagine',
+    'D': 'Aspartic acid',
+    'C': 'Cysteine',
+    'E': 'Glutamic acid',
+    'Q': 'Glutamine',
+    'G': 'Glycine',
+    'H': 'Histidine',
+    'I': 'Isoleucine',
+    'L': 'Leucine',
+    'K': 'Lysine',
+    'M': 'Methionine',
+    'F': 'Phenylalanine',
+    'P': 'Proline',
+    'S': 'Serine',
+    'T': 'Threonine',
+    'W': 'Tryptophan',
+    'Y': 'Tyrosine',
+    'V': 'Valine'
+}
+
 
 
 
@@ -291,18 +339,27 @@ class PromptDataset(MMAPDataset):
             L = torch.from_numpy(np.linalg.cholesky(cov)).float().unsqueeze(0)
         else:
             L = None
-
+        
         ## Use LLM to encode the text guidance
         if self.text_guidance is None:
             prompt = self._properties[idx][-1]
+            if len(self._properties[idx][10])>3:
+                prompt+=f'The amino acid at position 3 is {amino_acid_map[self._properties[idx][7][2]]}.'
         else:
             prompt = self.text_guidance
-        inputs = tokz(prompt, return_tensors="pt")
-        prompt = model(**inputs)
+        if False:
+            one_hot_vector = torch.zeros(20)
+            one_hot_vector[amino_acid_map[prompt[0]]-1] = 1
+            one_hot_vector = one_hot_vector.unsqueeze(0)
+        else:
+            with torch.no_grad():
+                inputs = tokz(prompt, return_tensors="pt")
+                prompt = model(**inputs)
+                prompt = prompt['pooler_output'].detach()
         item =  {
             'X': X,                                                         # [N, 14] or [N, 4] if backbone_only == True
             'S': torch.tensor(S, dtype=torch.long),                         # [N]
-            'prompt': prompt['pooler_output'].detach(),                 # text embedding ['last_hidden_state', 'pooler_output']
+            'prompt': prompt,                 # text embedding ['last_hidden_state', 'pooler_output']
             'position_ids': torch.tensor(position_ids, dtype=torch.long),   # [N]
             'mask': mask,                                                   # [N], 1 for generation
             'atom_mask': atom_mask,                                         # [N, 14] or [N, 4], 1 for having records in the PDB

@@ -310,6 +310,7 @@ class AutoEncoder(nn.Module):
 
         # resample
         latent_H, latent_X, H_kl_loss, X_kl_loss = self.rsample(H, Z, Z_centers, no_randomness)
+        
         return latent_H, latent_X, H_kl_loss, X_kl_loss
     
     def decode(self, X, S, H, Z, mask, position_ids, lengths, atom_mask, teacher_forcing):
@@ -485,3 +486,204 @@ class AutoEncoder(nn.Module):
                 batch_S.append(''.join([VOCAB.idx_to_symbol(s) for s in recon_S[cur_mask]]))
 
         return batch_X, batch_S, batch_ppls
+
+@R.register('Prompt_AutoEncoder')
+class Prompt_AutoEncoder(AutoEncoder):
+    def __init__(
+            self,
+            embed_size,
+            hidden_size,
+            latent_size,
+            n_channel,
+            latent_n_channel=1,
+            mask_id=VOCAB.get_mask_idx(),
+            latent_id=VOCAB.symbol_to_idx(VOCAB.LAT),
+            max_position=2048,
+            relative_position=False,
+            CA_channel_idx=VOCAB.backbone_atoms.index('CA'),
+            n_layers=3,
+            dropout=0.1,
+            mask_ratio=0.0,
+            fix_alpha_carbon=False,
+            h_kl_weight=0.1,
+            z_kl_weight=0.5,
+            coord_loss_weights={
+                'Xloss': 1.0,
+                'ca_Xloss': 0.0,
+                'bb_bond_lengths_loss': 1.0,
+                'sc_bond_lengths_loss': 1.0,
+                'bb_dihedral_angles_loss': 0.0, # this significantly poison the training
+                'sc_chi_angles_loss': 0.5
+            },
+            coord_loss_ratio=0.5,  # (1 - r)*seq + r * coord
+            coord_prior_var=1.0,   # sigma^2
+            anchor_at_ca=False,
+            share_decoder=False,
+            n_rbf=0,
+            cutoff=0,
+            encoder='dyMEAN',
+            mode='codesign' # codesign, fixbb (inverse folding), fixseq (structure prediction)
+        ) -> None:
+        super().__init__(
+            embed_size,
+            hidden_size,
+            latent_size,
+            n_channel,
+            latent_n_channel,
+            mask_id,
+            latent_id,
+            max_position,
+            relative_position,
+            CA_channel_idx,
+            n_layers,
+            dropout,
+            mask_ratio,
+            fix_alpha_carbon,
+            h_kl_weight,
+            z_kl_weight,
+            coord_loss_weights,
+            coord_loss_ratio,  # (1 - r)*seq + r * coord
+            coord_prior_var,   # sigma^2
+            anchor_at_ca,
+            share_decoder,
+            n_rbf,
+            cutoff,
+            encoder,
+            mode)
+        
+        self.prompt_encoder = nn.Linear(768,latent_size)
+
+    def _contrastive_loss(self,H, B, batch_ids, temperature=1.0):
+        """
+        A和B均为(batch_size, hidden_size)的张量, 
+        A[i]和B[i]是匹配的一对(如图像embedding与相应文本embedding)。
+        使用给定公式:
+        L_con = -1/|B| * sum_i log( exp(cos(z_i, c_i)/τ) / sum_j exp(cos(z_i, c_j)/τ) )
+        """
+        batch_size = batch_ids.max().item() + 1
+        # 1. 初始化输出张量和计数器
+        sum_pooling = torch.zeros(batch_size, H.size(1)).to(H.device)  # (batch_size, hidden_dim)
+        count = torch.zeros(batch_size, 1).to(H.device)  # 每个 batch_idx 的计数
+
+        # 2. 使用 scatter_add 进行加和操作
+        sum_pooling.scatter_add_(0, batch_ids.view(-1, 1).expand(-1, H.size(1)), H)
+
+        # 3. 使用 scatter_add 统计每个 batch_idx 的数量
+        ones = torch.ones_like(batch_ids, dtype=torch.float).view(-1, 1)
+        count.scatter_add_(0, batch_ids.view(-1, 1), ones)
+
+        # 4. 计算均值池化
+        A = sum_pooling / count  # (batch_size, hidden_dim)
+
+        # 对A和B进行L2归一化，以确保A_norm[i]和B_norm[i]均为单位向量
+        A_norm = F.normalize(A, p=2, dim=1)  # (batch_size, hidden_size)
+        B_norm = F.normalize(B, p=2, dim=1)  # (batch_size, hidden_size)
+
+        # 相似度矩阵：cosine相似度 = A_norm * B_norm^T, shape: (batch_size, batch_size)
+        # S[i,j] = cos(z_i, c_j)
+        similarity_matrix = A_norm @ B_norm.T
+
+        # 将相似度除以温度参数tau
+        logits = similarity_matrix / temperature  # (batch_size, batch_size)
+
+        # 标签是0到batch_size-1，表示对角线上(i,i)是正样本
+        labels = torch.arange(A.shape[0], device=A.device)
+
+        # 使用cross_entropy等价于:
+        # -\sum_i log( exp(logits[i,i]) / sum_j exp(logits[i,j]) )
+        # 这与公式完全对应，因为cross_entropy的输入: logits, target=labels 
+        # 计算的正是 -log(softmax(logits)[i, labels[i]])
+        loss = F.cross_entropy(logits, labels)
+
+        return loss
+
+    def encode(self, X, S, mask, position_ids, lengths, atom_mask, no_randomness=False):
+        true_X = X.clone()
+
+        ctx_edges, inter_edges, batch_ids = self.prepare_inputs(X, S, mask, atom_mask, lengths)
+        H_0, (atom_embeddings, _) = self.aa_feature(S, position_ids)
+
+        edges = torch.cat([ctx_edges, inter_edges], dim=1)
+        atom_weights = atom_mask.float() # 1 for atom, 0 for padding/missing, [N, 14]
+
+        H, pred_X = self.encoder(H_0, X, edges, channel_attr=atom_embeddings, channel_weights=atom_weights)
+        H = H[mask]
+
+        if self.mode != 'fixbb':
+            if hasattr(self, 'fix_alpha_carbon') and self.fix_alpha_carbon:
+                Z = self._get_latent_channels(true_X, atom_mask)
+            else:
+                Z = self._get_latent_channels(pred_X, atom_mask)
+            Z_centers = self._get_latent_channel_anchors(true_X, atom_mask)
+            Z, Z_centers = Z[mask], Z_centers[mask]
+        else:
+            Z, Z_centers = None, None
+
+        # resample
+        latent_H, latent_X, H_kl_loss, X_kl_loss = self.rsample(H, Z, Z_centers, no_randomness)
+
+        return latent_H, latent_X, H_kl_loss, X_kl_loss
+    
+    @oom_decorator
+    def forward(self, X, S, prompt,mask, position_ids, lengths, atom_mask, teacher_forcing=True):
+        true_X, true_S = X[mask].clone(), S[mask].clone()
+        
+        # encode: H (N*d), Z (N*3)
+        if self.mask_ratio > 0:
+            input_S, input_atom_mask = self._mask_pep(S, atom_mask, mask)
+        else:
+            input_S, input_atom_mask = S, atom_mask
+        H, Z, H_kl_loss, Z_kl_loss = self.encode(X, input_S, mask, position_ids, lengths, input_atom_mask)
+
+        if self.mode != 'fixbb':
+            batch_ids = self.get_batch_ids(S, lengths)[mask]
+            prompt_embedding = self.prompt_encoder(prompt)
+            infonce = self._contrastive_loss(H,prompt_embedding,batch_ids)
+        
+        if self.mode != 'fixbb':
+            coord_reg_loss = F.mse_loss(Z, self._get_latent_channel_anchors(true_X, atom_mask[mask]))
+        else:
+            coord_reg_loss = 0
+        # decode: S (N), Z (N * 14 * 3) with atom mask
+        recon_S_logits, recon_X = self.decode(X, S, H, Z, mask, position_ids, lengths, atom_mask, teacher_forcing)
+
+        # sequence reconstruction loss
+        if self.mode != 'fixseq':
+            seq_recon_loss = F.cross_entropy(recon_S_logits, self.s_map[true_S])
+            # aar
+            with torch.no_grad():
+                aar = (torch.argmax(recon_S_logits, dim=-1) == self.s_map[true_S]).sum() / len(recon_S_logits)
+        else:
+            seq_recon_loss, aar = 0, 1.0
+
+        # coordinates reconstruction loss
+        if self.mode != 'fixbb':
+            xloss_mask = atom_mask[mask]
+            batch_ids = self.get_batch_ids(S, lengths)[mask]
+            segment_ids = torch.ones_like(true_S, device=true_S.device, dtype=torch.long)
+            if self.n_channel == 4:  # backbone only
+                loss_profile = {}
+            else:
+                true_struct_profile = self.protein_feature.get_struct_profile(true_X, true_S, batch_ids, self.aa_feature, segment_ids, xloss_mask)
+                recon_struct_profile = self.protein_feature.get_struct_profile(recon_X, true_S, batch_ids, self.aa_feature, segment_ids, xloss_mask)
+                loss_profile = { key + '_loss': F.l1_loss(recon_struct_profile[key], true_struct_profile[key]) for key in recon_struct_profile }
+
+            # mse
+            xloss = F.mse_loss(recon_X[xloss_mask], true_X[xloss_mask])
+            loss_profile['Xloss'] = xloss
+
+            # CA mse
+            ca_xloss_mask = xloss_mask[:, self.ca_channel_idx]
+            ca_xloss = F.mse_loss(recon_X[:, self.ca_channel_idx][ca_xloss_mask], true_X[:, self.ca_channel_idx][ca_xloss_mask])
+            loss_profile['ca_Xloss'] = ca_xloss
+
+            struct_recon_loss = 0
+            for name in loss_profile:
+                struct_recon_loss = struct_recon_loss + self.coord_loss_weights[name] * loss_profile[name]
+        else:
+            struct_recon_loss, loss_profile = 0, {}
+
+        recon_loss = (1 - self.coord_loss_ratio) * (seq_recon_loss + self.h_kl_weight * H_kl_loss) + \
+                     self.coord_loss_ratio * (struct_recon_loss + self.z_kl_weight * Z_kl_loss)
+
+        return recon_loss, (seq_recon_loss, aar), (struct_recon_loss, loss_profile), (H_kl_loss, Z_kl_loss, coord_reg_loss), infonce

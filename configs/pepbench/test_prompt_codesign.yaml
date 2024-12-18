@@ -4,14 +4,15 @@ dataset:
     mmap_dir: /data/private/jdp/PepGLAD/datasets/LNR/processed
     backbone_only: false
     use_covariance_matrix: true
-    text_guidance: The peptide has 0 alpha helices.
+    text_guidance: The distance between the N-terminal and C-terminal atoms of the peptide is less than 3.80 Å.
 
 dataloader:
   num_workers: 4
-  batch_size: 64
+  batch_size: 16
 
 backbone_only: false
 n_samples: 2
+guidance_strength: 1000
 
 # sample_opt:
 #   energy_func: default
