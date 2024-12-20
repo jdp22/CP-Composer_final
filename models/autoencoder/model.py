@@ -575,14 +575,14 @@ class Prompt_AutoEncoder(AutoEncoder):
         # 4. 计算均值池化
         A = sum_pooling / count  # (batch_size, hidden_dim)
 
-        # 对A和B进行L2归一化，以确保A_norm[i]和B_norm[i]均为单位向量
-        A_norm = F.normalize(A, p=2, dim=1)  # (batch_size, hidden_size)
-        B_norm = F.normalize(B, p=2, dim=1)  # (batch_size, hidden_size)
+        # # 对A和B进行L2归一化，以确保A_norm[i]和B_norm[i]均为单位向量
+        # A_norm = F.normalize(A, p=2, dim=1)  # (batch_size, hidden_size)
+        # B_norm = F.normalize(B, p=2, dim=1)  # (batch_size, hidden_size)
 
         # 相似度矩阵：cosine相似度 = A_norm * B_norm^T, shape: (batch_size, batch_size)
         # S[i,j] = cos(z_i, c_j)
-        similarity_matrix = A_norm @ B_norm.T
-
+        similarity_matrix = (A @ B.T)/torch.sqrt(torch.tensor(A.shape[1]).to(A.device))
+        
         # 将相似度除以温度参数tau
         logits = similarity_matrix / temperature  # (batch_size, batch_size)
 

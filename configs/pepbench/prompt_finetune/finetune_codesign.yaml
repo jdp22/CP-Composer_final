@@ -35,7 +35,7 @@ trainer:
   config:
     max_epoch: 1000 # the best checkpoint should be obtained at around epoch 380
     save_topk: 10
-    val_freq: 3
+    val_freq: 1
     save_dir: ./ckpts/LDM_codesign
     patience: 10
     metric_min_better: true

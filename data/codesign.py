@@ -343,8 +343,8 @@ class PromptDataset(MMAPDataset):
         ## Use LLM to encode the text guidance
         if self.text_guidance is None:
             prompt = self._properties[idx][-1]
-            if len(self._properties[idx][10])>3:
-                prompt+=f'The amino acid at position 3 is {amino_acid_map[self._properties[idx][7][2]]}.'
+            # if len(self._properties[idx][10])>3:
+            #     prompt+=f'The amino acid at position 3 is {amino_acid_map[self._properties[idx][7][2]]}.'
         else:
             prompt = self.text_guidance
         if False:
@@ -353,9 +353,9 @@ class PromptDataset(MMAPDataset):
             one_hot_vector = one_hot_vector.unsqueeze(0)
         else:
             with torch.no_grad():
-                inputs = tokz(prompt, return_tensors="pt")
+                inputs = tokz(prompt, return_tensors="pt",padding=True, truncation=True, max_length=30)
                 prompt = model(**inputs)
-                prompt = prompt['pooler_output'].detach()
+                prompt = prompt['last_hidden_state'].detach().squeeze(0)
         item =  {
             'X': X,                                                         # [N, 14] or [N, 4] if backbone_only == True
             'S': torch.tensor(S, dtype=torch.long),                         # [N]
@@ -364,6 +364,7 @@ class PromptDataset(MMAPDataset):
             'mask': mask,                                                   # [N], 1 for generation
             'atom_mask': atom_mask,                                         # [N, 14] or [N, 4], 1 for having records in the PDB
             'lengths': len(S),
+            'prompt_lengths':prompt.shape[0]
         }
 
         if L is not None:
@@ -371,8 +372,8 @@ class PromptDataset(MMAPDataset):
         return item
 
     def collate_fn(self, batch):
+        results = {}
         if self.padding_collate:
-            results = {}
             pad_idx = VOCAB.symbol_to_idx(VOCAB.PAD)
             for key in batch[0]:
                 values = [item[key] for item in batch]
@@ -383,11 +384,16 @@ class PromptDataset(MMAPDataset):
                     results[key] = torch.tensor(values, dtype=torch.long)
                 elif key == 'S':
                     results[key] = pad_sequence(values, batch_first=True, padding_value=pad_idx)
+                elif key == 'prompt_lengths':
+                    lengths = [x['prompt'].size(0) for x in batch]  # The length of every sequence
+                    results['prompt_lengths'] = torch.tensor(lengths,dtype=torch.long)
+                elif key == 'prompt':
+                    prompts = [x['prompt'] for x in batch]
+                    results['prompt'] = pad_sequence(prompts, batch_first=True, padding_value=0.0)
                 else:
                     results[key] = pad_sequence(values, batch_first=True, padding_value=0)
             return results
         else:
-            results = {}
             for key in batch[0]:
                 values = [item[key] for item in batch]
                 if values[0] is None:
@@ -395,6 +401,12 @@ class PromptDataset(MMAPDataset):
                     continue
                 if key == 'lengths':
                     results[key] = torch.tensor(values, dtype=torch.long)
+                elif key == 'prompt_lengths':
+                    lengths = [x['prompt'].size(0) for x in batch]  # The length of every sequence
+                    results['prompt_lengths'] = torch.tensor(lengths,dtype=torch.long)
+                elif key == 'prompt':
+                    prompts = [x['prompt'] for x in batch]
+                    results['prompt'] = pad_sequence(prompts, batch_first=True, padding_value=0.0)
                 else:
                     results[key] = torch.cat(values, dim=0)
             return results
