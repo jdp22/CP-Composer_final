@@ -4,8 +4,10 @@ import torch
 import torch.nn as nn
 
 from utils.decorators import singleton
+from torch.nn import MultiheadAttention
 
 from .radial_basis import RadialBasis
+from copy import deepcopy
 
 
 class RadialLinear(nn.Module):
@@ -74,11 +76,12 @@ class AMEGNN(nn.Module):
         h = self.dropout(h)
 
         ctx_states, ctx_coords = [], []
+        # Add layer-wise attention 
         for i in range(0, self.n_layers):
             h, x = self._modules[f'gcl_{i}'](
                 h, edges, x, channel_attr, channel_weights,
                 edge_attr=ctx_edge_attr, x_update_mask=x_update_mask)
-
+            # cross-attn 
             ctx_states.append(h)
             ctx_coords.append(x)
 
@@ -93,6 +96,103 @@ class AMEGNN(nn.Module):
         h = self.dropout(h)
         h = self.linear_out(h)
         return h, x
+
+class Prompt_AMEGNN(nn.Module):
+
+    def __init__(self, in_node_nf, hidden_nf, out_node_nf, n_channel, channel_nf,
+                 radial_nf, in_edge_nf=0, act_fn=nn.SiLU(), n_layers=4,
+                 residual=True, dropout=0.1, dense=False, n_rbf=0, cutoff=1.0):
+        super().__init__()
+        '''
+        :param in_node_nf: Number of features for 'h' at the input
+        :param hidden_nf: Number of hidden features
+        :param out_node_nf: Number of features for 'h' at the output
+        :param n_channel: Number of channels of coordinates
+        :param in_edge_nf: Number of features for the edge features
+        :param act_fn: Non-linearity
+        :param n_layers: Number of layer for the EGNN
+        :param residual: Use residual connections, we recommend not changing this one
+        :param dropout: probability of dropout
+        :param dense: if dense, then context states will be concatenated for all layers,
+                      coordination will be averaged
+        '''
+        self.hidden_nf = hidden_nf
+        self.n_layers = n_layers
+
+        self.dropout = nn.Dropout(dropout)
+
+        self.linear_in = nn.Linear(in_node_nf, self.hidden_nf)
+
+        self.dense = dense
+        if dense:
+            self.linear_out = nn.Linear(self.hidden_nf * (n_layers + 1), out_node_nf)
+        else:
+            self.linear_out = nn.Linear(self.hidden_nf, out_node_nf)
+
+        for i in range(0, n_layers):
+            self.add_module(f'gcl_{i}', AM_E_GCL(
+                self.hidden_nf, self.hidden_nf, self.hidden_nf, n_channel, channel_nf, radial_nf,
+                edges_in_d=in_edge_nf, act_fn=act_fn, residual=residual, dropout=dropout, n_rbf=n_rbf, cutoff=cutoff
+            ))
+            self.add_module(f'attn_{i}',MultiheadAttention(self.hidden_nf,1,kdim = 768,vdim = 768,batch_first=True))
+            self.add_module(f'mix_{i}',nn.Linear(self.hidden_nf+self.hidden_nf,self.hidden_nf))
+        self.out_layer = AM_E_GCL(
+            self.hidden_nf, self.hidden_nf, self.hidden_nf, n_channel, channel_nf,
+            radial_nf, edges_in_d=in_edge_nf, act_fn=act_fn, residual=residual, n_rbf=n_rbf, cutoff=cutoff
+        )
+
+    def q_padding(self,Nodes, batch_ids):
+        """
+        将 A[N, H] 张量根据 B[N, 1] 分组，变为 [num_samples, L, H] 张量。
+        :param A: 输入特征张量，形状为 (N, H)
+        :param B: 样本归属标识张量，形状为 (N, 1)
+        :return: 重组后的张量，形状为 (num_samples, max_length, H)
+        """
+
+        unique_samples, counts = torch.unique(batch_ids, return_counts=True)
+        num_samples = len(unique_samples)
+        max_length = counts.max().item()
+        N, H = Nodes.shape
+        grouped_tensor = torch.full((num_samples, max_length, H),0, dtype=Nodes.dtype, device=Nodes.device)
+        attn_mask = torch.zeros((num_samples, max_length),dtype=bool, device=Nodes.device)
+        for i, sample_id in enumerate(unique_samples):
+            indices = (batch_ids == sample_id).nonzero(as_tuple=True)[0]
+            grouped_tensor[i, :len(indices), :] = Nodes[indices]
+            attn_mask[sample_id,:len(indices)] = True
+        
+        return grouped_tensor,attn_mask
+    
+    def forward(self, h, x,prompt, edges, channel_attr, channel_weights, ctx_edge_attr=None, x_update_mask=None,batch_ids=None,k_mask = None,text_guidance=False):
+        h = self.linear_in(h)
+        h = self.dropout(h)
+
+        ctx_states, ctx_coords = [], []
+        # Add layer-wise attention 
+        for i in range(0, self.n_layers):
+            h, x = self._modules[f'gcl_{i}'](
+                h, edges, x, channel_attr, channel_weights,
+                edge_attr=ctx_edge_attr, x_update_mask=x_update_mask)
+            # cross-attn 
+            if text_guidance:
+                h_padding,q_mask = self.q_padding(h,batch_ids)
+                h_prompt,_ = self._modules[f'attn_{i}'](h_padding,prompt,prompt,key_padding_mask = ~k_mask)
+                h_prompt = h_prompt[q_mask]
+                h = self._modules[f'mix_{i}'](torch.concat([h,h_prompt],dim=-1))
+            ctx_states.append(h)
+            ctx_coords.append(x)
+
+        h, x = self.out_layer(
+            h, edges, x, channel_attr, channel_weights,
+            edge_attr=ctx_edge_attr, x_update_mask=x_update_mask)
+        ctx_states.append(h)
+        ctx_coords.append(x)
+        if self.dense:
+            h = torch.cat(ctx_states, dim=-1)
+            x = torch.mean(torch.stack(ctx_coords), dim=0)
+        h = self.dropout(h)
+        h = self.linear_out(h)
+        return h, x
+
 
 '''
 Below are the implementation of the adaptive multi-channel message passing mechanism

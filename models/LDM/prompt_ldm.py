@@ -57,7 +57,7 @@ class Prompt_LDMPepDesign(LDMPepDesign):
         )
     
     @oom_decorator
-    def forward(self, X, S,prompt, mask, position_ids, lengths, atom_mask, L=None):
+    def forward(self, X, S,prompt, mask, position_ids, lengths, atom_mask,prompt_lengths, L=None):
         '''
             L: [bs, 3, 3], cholesky decomposition of the covariance matrix \Sigma = LL^T
         '''
@@ -102,6 +102,7 @@ class Prompt_LDMPepDesign(LDMPepDesign):
             lengths=lengths,
             atom_embeddings=atom_embeddings,
             atom_mask=atom_mask,
+            prompt_lengths=prompt_lengths,
             L=L,
             sample_structure=self.train_structure,
             sample_sequence=self.train_sequence
@@ -120,7 +121,7 @@ class Prompt_LDMPepDesign(LDMPepDesign):
     @torch.no_grad()
     def sample(
         self,
-        X, S,prompt, mask, position_ids, lengths, atom_mask, L=None,
+        X, S,prompt, mask, position_ids, lengths, atom_mask,prompt_lengths, L=None,
         sample_opt={
             'pbar': False,
             'energy_func': None,
@@ -166,7 +167,7 @@ class Prompt_LDMPepDesign(LDMPepDesign):
             # otherwise this should be a function
         autoencoder_n_iter = sample_opt.pop('autoencoder_n_iter', 1)
         
-        traj = self.diffusion.sample(H_0, X,prompt, position_embedding, mask, lengths, atom_embeddings, atom_mask, L, **sample_opt)
+        traj = self.diffusion.sample(H_0, X,prompt, position_embedding, mask, lengths,prompt_lengths, atom_embeddings, atom_mask, L, **sample_opt)
         X_0, H_0 = traj[0]
         X_0, H_0 = X_0[mask][:, :self.autoencoder.latent_n_channel], H_0[mask]
 
