@@ -29,7 +29,7 @@ fi
 ########## setup  distributed training ##########
 GPU="${GPU:--1}" # default using CPU
 MASTER_ADDR="${ADDR:-localhost}"
-MASTER_PORT="${PORT:-9901}"
+MASTER_PORT="${PORT:-11451}"
 echo "Using GPUs: $GPU"
 echo "Master address: ${MASTER_ADDR}, Master port: ${MASTER_PORT}"
 
@@ -46,4 +46,5 @@ fi
 
 ########## start training ##########
 cd $CODE_DIR
+echo "Start training:"
 ${PREFIX} train.py --gpus "${!GPU_ARR[@]}" --config $@

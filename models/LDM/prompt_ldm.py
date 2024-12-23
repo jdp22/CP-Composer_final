@@ -167,7 +167,8 @@ class Prompt_LDMPepDesign(LDMPepDesign):
             # otherwise this should be a function
         autoencoder_n_iter = sample_opt.pop('autoencoder_n_iter', 1)
         
-        traj = self.diffusion.sample(H_0, X,prompt, position_embedding, mask, lengths,prompt_lengths, atom_embeddings, atom_mask, L, **sample_opt)
+        traj = self.diffusion.sample(
+            H_0, X,prompt, position_embedding, mask, lengths,prompt_lengths, atom_embeddings, atom_mask, L, **sample_opt)
         X_0, H_0 = traj[0]
         X_0, H_0 = X_0[mask][:, :self.autoencoder.latent_n_channel], H_0[mask]
 

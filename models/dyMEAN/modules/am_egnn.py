@@ -175,6 +175,7 @@ class Prompt_AMEGNN(nn.Module):
             # cross-attn 
             if text_guidance:
                 h_padding,q_mask = self.q_padding(h,batch_ids)
+                h_init = h.clone()
                 h_prompt,_ = self._modules[f'attn_{i}'](h_padding,prompt,prompt,key_padding_mask = ~k_mask)
                 h_prompt = h_prompt[q_mask]
                 h = self._modules[f'mix_{i}'](torch.concat([h,h_prompt],dim=-1))

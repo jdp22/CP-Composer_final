@@ -20,6 +20,17 @@ model = AutoModel.from_pretrained("/data/private/jdp/scibert")
 tokz = AutoTokenizer.from_pretrained("/data/private/jdp/scibert")
 model.eval()
 
+# from transformers import AutoTokenizer, AutoModelForCausalLM
+# cache_dir = "/data/private/jdp/Qwen2.5-1.5B-Instruct"
+# model_name = "Qwen/Qwen2.5-1.5B-Instruct"
+# Qw_model = AutoModelForCausalLM.from_pretrained(
+#     model_name,
+#     torch_dtype="auto",
+#     device_map="auto",
+#     cache_dir = cache_dir
+# )
+# Qw_tokenizer = AutoTokenizer.from_pretrained(model_name)
+
 # amino_acid_map = {
 #     'A': 1,  # Alanine
 #     'R': 2,  # Arginine
@@ -343,8 +354,6 @@ class PromptDataset(MMAPDataset):
         ## Use LLM to encode the text guidance
         if self.text_guidance is None:
             prompt = self._properties[idx][-1]
-            # if len(self._properties[idx][10])>3:
-            #     prompt+=f'The amino acid at position 3 is {amino_acid_map[self._properties[idx][7][2]]}.'
         else:
             prompt = self.text_guidance
         if False:
@@ -353,6 +362,26 @@ class PromptDataset(MMAPDataset):
             one_hot_vector = one_hot_vector.unsqueeze(0)
         else:
             with torch.no_grad():
+                # messages = [
+                # {"role": "system", "content": "You are an advanced assistant focused on data augmentation for (graph, text) pairs. Your task is to rephrase the given sentence into another sentence in English with the same meaning. The output should maintain the original context and meaning while introducing variations in phrasing or vocabulary."},
+                # {"role": "user", "content": prompt}
+                # ]
+                # text = Qw_tokenizer.apply_chat_template(
+                #     messages,
+                #     tokenize=False,
+                #     add_generation_prompt=True,
+                #     cache_dir = cache_dir
+                # )
+                # model_inputs = tokenizer([text], return_tensors="pt").to(model.device)
+                # generated_ids = Qw_model.generate(
+                # **model_inputs,
+                # max_new_tokens=512
+                # )
+                # generated_ids = [
+                # output_ids[len(input_ids):] for input_ids, output_ids in zip(model_inputs.input_ids, generated_ids)
+                # ]
+                # prompt = tokenizer.batch_decode(generated_ids, skip_special_tokens=True)[0]
+                # or access fields directly from the response object
                 inputs = tokz(prompt, return_tensors="pt",padding=True, truncation=True, max_length=30)
                 prompt = model(**inputs)
                 prompt = prompt['last_hidden_state'].detach().squeeze(0)

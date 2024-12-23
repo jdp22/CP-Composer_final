@@ -395,7 +395,6 @@ class PromptDPM(FullDPM):
         #     n_rbf=n_rbf, cutoff=cutoff, dropout=dropout, additional_pos_embed=additional_pos_embed)
 
         self.text_encoder = text_encoder
-        print(text_encoder)
         self.prompt_size = 768
         self.eps_net = EpsilonNet(
             latent_size, hidden_size,n_channel,prompt_size=8, n_layers=n_layers, edge_size=dist_rbf,
@@ -540,7 +539,7 @@ class PromptDPM(FullDPM):
         """
         # if L is not None: 
         #     L = L / self.std
-        self.w = 10
+        self.w = 7
         batch_ids = self._get_batch_ids(mask_generate, lengths)
         batch_size = batch_ids.max() + 1
         X, centers = self._normalize_position(X, batch_ids, mask_generate, atom_mask, L)
@@ -570,7 +569,6 @@ class PromptDPM(FullDPM):
             X_t, H_t = torch.round(X_t, decimals=4), torch.round(H_t, decimals=4) # reduce numerical error
             # print(t, 'input', X_t[0, 0] * 1000)
             
-            # beta = self.trans_x.var_sched.betas[t].view(1).repeat(X_t.shape[0])
             beta = self.trans_x.get_timestamp(t).view(1).repeat(X_t.shape[0])
             t_tensor = torch.full([X_t.shape[0], ], fill_value=t, dtype=torch.long, device=X_t.device)
 
@@ -583,7 +581,9 @@ class PromptDPM(FullDPM):
             else:
                 ctx_edge_attr, inter_edge_attr = None, None
             
-            beta = self.trans_x.get_timestamp(t)[batch_ids]  # [N]
+            beta = self.trans_x.get_timestamp(t).view(1).repeat(X_t.shape[0])
+            t_tensor = torch.full([X_t.shape[0], ], fill_value=t, dtype=torch.long, device=X_t.device)
+
             max_prompt_length = prompt_lengths.max()
             key_mask = torch.arange(max_prompt_length).expand(batch_size, max_prompt_length).to(prompt_lengths.device) < prompt_lengths.unsqueeze(1)
             

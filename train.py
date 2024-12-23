@@ -57,7 +57,6 @@ def main(args, opt_args):
         torch.distributed.init_process_group(backend='nccl', world_size=len(args.gpus))
     else:
         args.local_rank = -1
-
     if args.local_rank <= 0:
         print_log(f'Number of parameters: {count_parameters(model) / 1e6} M')
     

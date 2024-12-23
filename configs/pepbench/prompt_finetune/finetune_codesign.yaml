@@ -2,20 +2,20 @@ dataset:
   train:
     - class: PromptDataset
       mmap_dir: /data/private/jdp/PepGLAD/datasets/train_valid/processed
-      specify_index: /data/private/jdp/PepGLAD/datasets/train_valid/processed/prompt_train_distance_index.txt
+      specify_index: /data/private/jdp/PepGLAD/datasets/train_valid/processed/prompt_train_distance_index_augmentation.txt
       # specify_index: /data/private/jdp/PepGLAD/datasets/train_valid/processed/train_index.txt
       backbone_only: false
       # cluster: ./datasets/train_valid/train.cluster
       use_covariance_matrix: true
     - class: PromptDataset
       mmap_dir: /data/private/jdp/PepGLAD/datasets/ProtFrag/processed
-      specify_index: /data/private/jdp/PepGLAD/datasets/ProtFrag/processed/prompt_distance_index.txt
+      specify_index: /data/private/jdp/PepGLAD/datasets/ProtFrag/processed/prompt_distance_index_augmentation.txt
       backbone_only: false
       use_covariance_matrix: true
   valid:
     class: PromptDataset
     mmap_dir: /data/private/jdp/PepGLAD/datasets/train_valid/processed
-    specify_index: /data/private/jdp/PepGLAD/datasets/train_valid/processed/prompt_valid_distance_index.txt
+    specify_index: /data/private/jdp/PepGLAD/datasets/train_valid/processed/prompt_valid_distance_index_augmentation.txt
     # specify_index: /data/private/jdp/PepGLAD/datasets/train_valid/processed/valid_index.txt
     backbone_only: false
     use_covariance_matrix: true

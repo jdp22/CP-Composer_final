@@ -237,6 +237,7 @@ class Trainer:
         main_device_id = local_rank if local_rank != -1 else device_ids[0]
         device = torch.device('cpu' if main_device_id == -1 else f'cuda:{main_device_id}')
         self.model.to(device)
+        print('FLAG3')
         if local_rank != -1:
             print_log(f'Using data parallel, local rank {local_rank}, all {device_ids}')
             self.model = torch.nn.parallel.DistributedDataParallel(

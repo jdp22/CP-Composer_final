@@ -1,4 +1,4 @@
-name: PepGLAD
+name: PepGLAD3 
 channels:
   - pyg
   - pytorch
