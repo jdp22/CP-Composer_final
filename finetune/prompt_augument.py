@@ -25,7 +25,7 @@ model = AutoModelForCausalLM.from_pretrained(
     device_map="auto",
     cache_dir=cache_dir
 )
-tokenizer = AutoTokenizer.from_pretrained(model_name,padding_side='left', truncation_side='left')
+tokenizer = AutoTokenizer.from_pretrained(model_name, padding_side='left', truncation_side='left')
 
 def batch_generate_responses(prompts):
     """Generate responses for a batch of prompts."""
@@ -33,7 +33,11 @@ def batch_generate_responses(prompts):
         {
             "role": "system",
             "content": (
-            "Rephrase the given sentence into another English sentence with the same meaning. Ensure the output varies in phrasing, structure, or vocabulary while staying as a single line. Do not include anthing else than the rephrased sentence. The output should maintain the original context and meaning while introducing variations in phrasing or vocabulary."
+                "Rephrase the given sentence into another English sentence with the same meaning. "
+                "Ensure the output varies in phrasing, structure, or vocabulary while staying as a "
+                "single line. Do not include anything else than the rephrased sentence. "
+                "The output should maintain the original context and meaning while introducing "
+                "variations in phrasing or vocabulary."
             )
         }
     ]
@@ -50,7 +54,12 @@ def batch_generate_responses(prompts):
     ]
     
     # Tokenize inputs
-    model_inputs = tokenizer(batch_texts, return_tensors="pt", padding=True, truncation=True).to(model.device)
+    model_inputs = tokenizer(
+        batch_texts,
+        return_tensors="pt",
+        padding=True,
+        truncation=True
+    ).to(model.device)
     
     # Generate responses
     with torch.no_grad():
@@ -61,39 +70,52 @@ def batch_generate_responses(prompts):
     
     # Decode outputs
     decoded_responses = tokenizer.batch_decode(generated_ids, skip_special_tokens=True)
-    responses = [
-        response.split("\nassistant\n", 1)[-1].strip() if "\nassistant\n" in response else response.strip()
-        for response in decoded_responses
-    ]
+    responses = []
+    for response in decoded_responses:
+        if "\nassistant\n" in response:
+            # 分隔符可能因模型不同而异，这里根据你实际情况做适当处理
+            content = response.split("\nassistant\n", 1)[-1].strip()
+        else:
+            content = response.strip()
+        responses.append(content)
     return responses
 
 def process_batch(lines):
     """Process a batch of lines."""
     processed_lines = []
-    prompts = []
+    prompts1 = []
+    prompts2 = []
     original_parts = []
+
     for line in lines:
         parts = line.strip().split('\t')
-        if len(parts) > 1:
-            last_prompt = parts[-1]
-            if random.random() < 0.5:
-                amoid_sequence = parts[10]
-                max_positions = len(amoid_sequence) // 2
-                num_positions = random.randint(1, max_positions)
-                positions = random.sample(range(len(amoid_sequence)), num_positions)
-                for i in positions:
-                    last_prompt += ' ' + f'The amino acid at position {i} is {amino_acid_map[amoid_sequence[i]]}.'
-            prompts.append(last_prompt)
-            original_parts.append(parts)
-        else:
-            processed_lines.append(line.strip())  # Keep lines without tabs unchanged
+        last_prompt = parts[-1]
+        prompts1.append(last_prompt)
 
-    # Generate responses in batch
-    if prompts:
-        responses = batch_generate_responses(prompts)
-        for parts, response in zip(original_parts, responses):
-            parts[-1] = response
-            processed_lines.append('\t'.join(parts))
+        amoid_sequence = parts[10]
+        num_positions = 2
+        positions = random.sample(range(len(amoid_sequence)), num_positions)
+        # 生成 prompts2 的内容
+        amino_prompt = ''
+        for i in positions:
+            amino_prompt += f'The amino acid at position {i} is {amino_acid_map[amoid_sequence[i]]}.'
+        prompts2.append(amino_prompt)
+
+        original_parts.append(parts)
+
+    # **修改点：合并 prompts1 和 prompts2，一次性调用 batch_generate_responses**
+    combined_prompts = prompts1 + prompts2
+    combined_responses = batch_generate_responses(combined_prompts)
+
+    # 前半部分对应 prompts1，后半部分对应 prompts2
+    responses1 = combined_responses[:len(prompts1)]
+    responses2 = combined_responses[len(prompts1):]
+
+    # 将 results 填充回去
+    for parts, response1, response2 in zip(original_parts, responses1, responses2):
+        parts[-1] = response1  # 更新最后一列
+        parts.append(response2)  # 追加新的列
+        processed_lines.append('\t'.join(parts))
     return processed_lines
 
 def process_file(file_path, batch_size=16):
@@ -119,6 +141,8 @@ def process_file(file_path, batch_size=16):
     print(f"File {new_file_path} has been created with updated content!")
 
 # Example usage
-file_path = "/data/private/jdp/PepGLAD/datasets/ProtFrag/processed/prompt_distance_index.txt"  # Replace with the path to your text file
-process_file(file_path, batch_size=256)
+if __name__ == "__main__":
+    file_path = "/data/private/jdp/PepGLAD/datasets/train_valid/processed/prompt_valid_distance_index.txt"  # Replace with the path to your text file
+    process_file(file_path, batch_size=256)
+
 

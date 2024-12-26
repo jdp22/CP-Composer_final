@@ -5,6 +5,7 @@ import torch.nn as nn
 
 from utils.decorators import singleton
 from torch.nn import MultiheadAttention
+import random
 
 from .radial_basis import RadialBasis
 from copy import deepcopy
@@ -134,8 +135,10 @@ class Prompt_AMEGNN(nn.Module):
                 self.hidden_nf, self.hidden_nf, self.hidden_nf, n_channel, channel_nf, radial_nf,
                 edges_in_d=in_edge_nf, act_fn=act_fn, residual=residual, dropout=dropout, n_rbf=n_rbf, cutoff=cutoff
             ))
-            self.add_module(f'attn_{i}',MultiheadAttention(self.hidden_nf,1,kdim = 768,vdim = 768,batch_first=True))
-            self.add_module(f'mix_{i}',nn.Linear(self.hidden_nf+self.hidden_nf,self.hidden_nf))
+            self.add_module(f'attn_1{i}',MultiheadAttention(self.hidden_nf,1,kdim = 768,vdim = 768,batch_first=True))
+            self.add_module(f'attn_2{i}',MultiheadAttention(self.hidden_nf,1,kdim = 768,vdim = 768,batch_first=True))
+            # self.add_module(f'mlp_{i}',nn.Linear(768,self.hidden_nf))
+            self.add_module(f'mix_{i}',nn.Linear(self.hidden_nf*3,self.hidden_nf))
         self.out_layer = AM_E_GCL(
             self.hidden_nf, self.hidden_nf, self.hidden_nf, n_channel, channel_nf,
             radial_nf, edges_in_d=in_edge_nf, act_fn=act_fn, residual=residual, n_rbf=n_rbf, cutoff=cutoff
@@ -162,7 +165,7 @@ class Prompt_AMEGNN(nn.Module):
         
         return grouped_tensor,attn_mask
     
-    def forward(self, h, x,prompt, edges, channel_attr, channel_weights, ctx_edge_attr=None, x_update_mask=None,batch_ids=None,k_mask = None,text_guidance=False):
+    def forward(self, h, x,prompt, edges, channel_attr, channel_weights,key_mask, ctx_edge_attr=None, x_update_mask=None,batch_ids=None,text_guidance=False,inference=False):
         h = self.linear_in(h)
         h = self.dropout(h)
 
@@ -175,10 +178,21 @@ class Prompt_AMEGNN(nn.Module):
             # cross-attn 
             if text_guidance:
                 h_padding,q_mask = self.q_padding(h,batch_ids)
-                h_init = h.clone()
-                h_prompt,_ = self._modules[f'attn_{i}'](h_padding,prompt,prompt,key_padding_mask = ~k_mask)
-                h_prompt = h_prompt[q_mask]
-                h = self._modules[f'mix_{i}'](torch.concat([h,h_prompt],dim=-1))
+                if random.random()<0.5 and not inference:
+                    h_prompt1,_ = self._modules[f'attn_1{i}'](h_padding,prompt['prompt1'],prompt['prompt1'],key_padding_mask = ~key_mask['prompt1_mask'])
+                    h_prompt1 = h_prompt1[q_mask]
+                else:
+                    h_prompt1 = torch.zeros(h.shape[0],self.hidden_nf).to(h.device)
+                if random.random()<0.5 and not inference:
+                    h_prompt2,_ = self._modules[f'attn_2{i}'](h_padding,prompt['prompt2'],prompt['prompt2'],key_padding_mask = ~key_mask['prompt2_mask'])
+                    h_prompt2 = h_prompt2[q_mask]
+                else:
+                    h_prompt2 = torch.zeros(h.shape[0],self.hidden_nf).to(h.device)
+                h = self._modules[f'mix_{i}'](torch.concat([h,h_prompt1,h_prompt2],dim=-1))
+            else:
+                h_prompt1 = torch.zeros(h.shape[0],self.hidden_nf).to(h.device)
+                h_prompt2 = torch.zeros(h.shape[0],self.hidden_nf).to(h.device)
+                h = self._modules[f'mix_{i}'](torch.concat([h,h_prompt1,h_prompt2],dim=-1))
             ctx_states.append(h)
             ctx_coords.append(x)
 

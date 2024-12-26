@@ -291,7 +291,7 @@ class PromptDataset(MMAPDataset):
         #     for i in pocket[chain_id]:
         #         rec_blocks.append(blocks[i])
         if self.text_guidance is None:
-            pp_idx = -2
+            pp_idx = -3
         else:
             pp_idx = -1
         try:
@@ -353,7 +353,8 @@ class PromptDataset(MMAPDataset):
         
         ## Use LLM to encode the text guidance
         if self.text_guidance is None:
-            prompt = self._properties[idx][-1]
+            prompt1 = self._properties[idx][-2]
+            prompt2 = self._properties[idx][-1]
         else:
             prompt = self.text_guidance
         if False:
@@ -362,29 +363,14 @@ class PromptDataset(MMAPDataset):
             one_hot_vector = one_hot_vector.unsqueeze(0)
         else:
             with torch.no_grad():
-                # messages = [
-                # {"role": "system", "content": "You are an advanced assistant focused on data augmentation for (graph, text) pairs. Your task is to rephrase the given sentence into another sentence in English with the same meaning. The output should maintain the original context and meaning while introducing variations in phrasing or vocabulary."},
-                # {"role": "user", "content": prompt}
-                # ]
-                # text = Qw_tokenizer.apply_chat_template(
-                #     messages,
-                #     tokenize=False,
-                #     add_generation_prompt=True,
-                #     cache_dir = cache_dir
-                # )
-                # model_inputs = tokenizer([text], return_tensors="pt").to(model.device)
-                # generated_ids = Qw_model.generate(
-                # **model_inputs,
-                # max_new_tokens=512
-                # )
-                # generated_ids = [
-                # output_ids[len(input_ids):] for input_ids, output_ids in zip(model_inputs.input_ids, generated_ids)
-                # ]
-                # prompt = tokenizer.batch_decode(generated_ids, skip_special_tokens=True)[0]
-                # or access fields directly from the response object
-                inputs = tokz(prompt, return_tensors="pt",padding=True, truncation=True, max_length=30)
-                prompt = model(**inputs)
-                prompt = prompt['last_hidden_state'].detach().squeeze(0)
+                inputs = tokz(prompt1, return_tensors="pt")
+                prompt1 = model(**inputs)
+                prompt1 = prompt1['last_hidden_state'].detach().squeeze(0)
+                inputs = tokz(prompt2, return_tensors="pt")
+                prompt2 = model(**inputs)
+                prompt2 = prompt2['last_hidden_state'].detach().squeeze(0)
+                prompt = {'prompt1':prompt1,'prompt2':prompt2}
+                
         item =  {
             'X': X,                                                         # [N, 14] or [N, 4] if backbone_only == True
             'S': torch.tensor(S, dtype=torch.long),                         # [N]
@@ -393,7 +379,6 @@ class PromptDataset(MMAPDataset):
             'mask': mask,                                                   # [N], 1 for generation
             'atom_mask': atom_mask,                                         # [N, 14] or [N, 4], 1 for having records in the PDB
             'lengths': len(S),
-            'prompt_lengths':prompt.shape[0]
         }
 
         if L is not None:
@@ -434,8 +419,24 @@ class PromptDataset(MMAPDataset):
                     lengths = [x['prompt'].size(0) for x in batch]  # The length of every sequence
                     results['prompt_lengths'] = torch.tensor(lengths,dtype=torch.long)
                 elif key == 'prompt':
-                    prompts = [x['prompt'] for x in batch]
-                    results['prompt'] = pad_sequence(prompts, batch_first=True, padding_value=0.0)
+                    key_masks = {}
+                    prompts_dict = {}
+                    prompts = [x['prompt']['prompt1'] for x in batch]
+                    prompts_lengths = torch.tensor([prompt.shape[0] for prompt in prompts])
+                    max_prompt_length = prompts_lengths.max()
+                    key_mask = torch.arange(max_prompt_length).expand(len(batch), max_prompt_length) < prompts_lengths.unsqueeze(1)
+                    key_masks['prompt1_mask'] = key_mask
+                    prompts_dict['prompt1'] = pad_sequence(prompts, batch_first=True, padding_value=0.0)
+
+                    prompts = [x['prompt']['prompt2'] for x in batch]
+                    prompts_lengths = torch.tensor([prompt.shape[0] for prompt in prompts])
+                    max_prompt_length = prompts_lengths.max()
+                    key_mask = torch.arange(max_prompt_length).expand(len(batch), max_prompt_length) < prompts_lengths.unsqueeze(1)
+                    key_masks['prompt2_mask'] = key_mask
+                    prompts_dict['prompt2'] = pad_sequence(prompts, batch_first=True, padding_value=0.0)
+
+                    results['prompt'] = prompts_dict
+                    results['key_mask'] = key_masks
                 else:
                     results[key] = torch.cat(values, dim=0)
             return results

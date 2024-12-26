@@ -4,7 +4,7 @@ dataset:
     mmap_dir: /data/private/jdp/PepGLAD/datasets/LNR/processed
     backbone_only: false
     use_covariance_matrix: true
-    text_guidance: The distance between the N-terminal and C-terminal atoms of the peptide is 3.80 Å.
+    text_guidance: The distance between the N-terminal and C-terminal atoms of the peptide is less than 3.80 Å.
 
 dataloader:
   num_workers: 4
@@ -12,7 +12,7 @@ dataloader:
 
 backbone_only: false
 n_samples: 2
-guidance_strength: 1000
+guidance_strength: 10
 
 # sample_opt:
 #   energy_func: default

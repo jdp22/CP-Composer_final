@@ -66,7 +66,7 @@ class EpsilonNet(nn.Module):
     def forward(
             self, H_noisy, X_noisy,prompt, position_embedding, ctx_edges, inter_edges,
             atom_embeddings, atom_weights, mask_generate, beta,
-            ctx_edge_attr=None, inter_edge_attr=None,batch_ids = None,k_mask=None,text_guidance=False):
+            ctx_edge_attr=None, inter_edge_attr=None,batch_ids = None,k_mask=None,text_guidance=False,inference=False):
         """
         Args:
             H_noisy: (N, hidden_size)
@@ -99,7 +99,7 @@ class EpsilonNet(nn.Module):
                 torch.cat([ctx_edge_attr, inter_edge_attr], dim=0)],
                 dim=-1
             ) # [E, embed size + edge_attr_size]
-        next_H, next_X = self.encoder(in_feat, X_noisy,prompt, edges, ctx_edge_attr=edge_attr, channel_attr=atom_embeddings, channel_weights=atom_weights,batch_ids=batch_ids,k_mask = k_mask,text_guidance = text_guidance)
+        next_H, next_X = self.encoder(in_feat, X_noisy,prompt, edges,key_mask = k_mask, ctx_edge_attr=edge_attr, channel_attr=atom_embeddings, channel_weights=atom_weights,batch_ids=batch_ids,text_guidance = text_guidance,inference = inference)
 
         # equivariant vector features changes
         eps_X = next_X - X_noisy
@@ -416,7 +416,7 @@ class PromptDPM(FullDPM):
             param.requires_grad = True
         
 
-    def forward(self, H_0, X_0, prompt, position_embedding, mask_generate,lengths,atom_embeddings, atom_mask,prompt_lengths, L=None, t=None, sample_structure=True, sample_sequence=True):
+    def forward(self, H_0, X_0, prompt, position_embedding, mask_generate,lengths,atom_embeddings, atom_mask,key_mask, L=None, t=None, sample_structure=True, sample_sequence=True):
         # if L is not None:
         #     L = L / self.std
         batch_ids = self._get_batch_ids(mask_generate, lengths)
@@ -445,8 +445,8 @@ class PromptDPM(FullDPM):
             ctx_edge_attr, inter_edge_attr = None, None
 
         beta = self.trans_x.get_timestamp(t)[batch_ids]  # [N]
-        max_prompt_length = prompt_lengths.max()
-        key_mask = torch.arange(max_prompt_length).expand(batch_size, max_prompt_length).to(prompt_lengths.device) < prompt_lengths.unsqueeze(1)
+        # max_prompt_length = prompt_lengths.max()
+        # key_mask = torch.arange(max_prompt_length).expand(batch_size, max_prompt_length).to(prompt_lengths.device) < prompt_lengths.unsqueeze(1)
         
         # Train a eps net with text guidance
         # prompt = prompt[batch_ids]
@@ -461,11 +461,11 @@ class PromptDPM(FullDPM):
         elif self.text_encoder == 'MLP':
             prompt_H = self.prompt_encoder_H(prompt[batch_ids])
             
-        if random.random()<self.p_con:
-            eps_H_pred, eps_X_pred= self.eps_net(H_noisy, X_noisy,prompt,position_embedding, ctx_edges, inter_edges, atom_embeddings, atom_mask.float(), mask_generate, beta,ctx_edge_attr=ctx_edge_attr, inter_edge_attr=inter_edge_attr,batch_ids=batch_ids,k_mask=key_mask,text_guidance=True)
+        if random.random()<0.9:
+            eps_H_pred, eps_X_pred= self.eps_net(H_noisy, X_noisy,prompt,position_embedding, ctx_edges, inter_edges, atom_embeddings, atom_mask.float(), mask_generate, beta,ctx_edge_attr=ctx_edge_attr, inter_edge_attr=inter_edge_attr,k_mask=key_mask,batch_ids=batch_ids,text_guidance=True)
         else:
             # prompt_H = torch.zeros_like(prompt_H)
-            eps_H_pred, eps_X_pred= self.eps_net(H_noisy, X_noisy,prompt, position_embedding, ctx_edges, inter_edges, atom_embeddings, atom_mask.float(), mask_generate, beta,ctx_edge_attr=ctx_edge_attr, inter_edge_attr=inter_edge_attr,batch_ids=batch_ids,k_mask = key_mask,text_guidance=False)
+            eps_H_pred, eps_X_pred= self.eps_net(H_noisy, X_noisy,prompt, position_embedding, ctx_edges, inter_edges, atom_embeddings, atom_mask.float(), mask_generate, beta,ctx_edge_attr=ctx_edge_attr, inter_edge_attr=inter_edge_attr,k_mask=key_mask,batch_ids=batch_ids,text_guidance=False)
         loss_dict = {}
         
         # equivariant vector feature loss, TODO: latent channel
@@ -527,7 +527,7 @@ class PromptDPM(FullDPM):
         return grouped_tensor,attn_mask
     
     @torch.no_grad()
-    def sample(self, H, X, prompt,position_embedding, mask_generate, lengths,prompt_lengths, atom_embeddings, atom_mask,
+    def sample(self, H, X, prompt,position_embedding, mask_generate, lengths, atom_embeddings, atom_mask,key_mask,
         L=None, sample_structure=True, sample_sequence=True, pbar=False, energy_func=None, energy_lambda=0.01
     ):
         """
@@ -539,7 +539,7 @@ class PromptDPM(FullDPM):
         """
         # if L is not None: 
         #     L = L / self.std
-        self.w = 7
+        self.w = 1
         batch_ids = self._get_batch_ids(mask_generate, lengths)
         batch_size = batch_ids.max() + 1
         X, centers = self._normalize_position(X, batch_ids, mask_generate, atom_mask, L)
@@ -584,14 +584,14 @@ class PromptDPM(FullDPM):
             beta = self.trans_x.get_timestamp(t).view(1).repeat(X_t.shape[0])
             t_tensor = torch.full([X_t.shape[0], ], fill_value=t, dtype=torch.long, device=X_t.device)
 
-            max_prompt_length = prompt_lengths.max()
-            key_mask = torch.arange(max_prompt_length).expand(batch_size, max_prompt_length).to(prompt_lengths.device) < prompt_lengths.unsqueeze(1)
+            # max_prompt_length = prompt_lengths.max()
+            # key_mask = torch.arange(max_prompt_length).expand(batch_size, max_prompt_length).to(prompt_lengths.device) < prompt_lengths.unsqueeze(1)
             
             eps_H, eps_X = self.eps_net(
                 H_t, X_t,prompt, position_embedding, ctx_edges, inter_edges, atom_embeddings, atom_mask.float(), mask_generate, beta,
                 ctx_edge_attr=ctx_edge_attr, inter_edge_attr=inter_edge_attr,batch_ids=batch_ids,k_mask=key_mask,text_guidance=False)
             prompted_eps_H_pred, prompted_eps_X_pred = self.eps_net(
-                H_t, X_t,prompt, position_embedding, ctx_edges, inter_edges, atom_embeddings, atom_mask.float(), mask_generate, beta,ctx_edge_attr=ctx_edge_attr, inter_edge_attr=inter_edge_attr,batch_ids=batch_ids,k_mask=key_mask,text_guidance=True)
+                H_t, X_t,prompt, position_embedding, ctx_edges, inter_edges, atom_embeddings, atom_mask.float(), mask_generate, beta,ctx_edge_attr=ctx_edge_attr, inter_edge_attr=inter_edge_attr,batch_ids=batch_ids,k_mask=key_mask,text_guidance=True,inference = True)
             eps_H = (1+self.w)*prompted_eps_H_pred-self.w*eps_H
             eps_X = (1+self.w)*prompted_eps_X_pred-self.w*eps_X
             

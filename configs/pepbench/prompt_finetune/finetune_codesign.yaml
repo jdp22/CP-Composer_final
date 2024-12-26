@@ -27,7 +27,7 @@ dataloader:
     class: DynamicBatchWrapper
     complexity: n**2
     # ubound_per_batch: 60000  # batch size ~32
-    ubound_per_batch: 2500
+    ubound_per_batch: 3000
 
 trainer:
   class: LDMTrainer
