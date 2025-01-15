@@ -165,12 +165,16 @@ class Prompt_AMEGNN(nn.Module):
         
         return grouped_tensor,attn_mask
     
-    def forward(self, h, x,prompt, edges, channel_attr, channel_weights,key_mask, ctx_edge_attr=None, x_update_mask=None,batch_ids=None,text_guidance=False,inference=False):
+    def forward(self, h, x,prompt, edges, channel_attr, channel_weights,key_mask_list, ctx_edge_attr=None, x_update_mask=None,batch_ids=None,text_guidance=False,inference=False):
         h = self.linear_in(h)
         h = self.dropout(h)
 
         ctx_states, ctx_coords = [], []
         # Add layer-wise attention 
+        if random.random()<0.5:
+            guidance1 = True
+        else:
+            guidance1 = False
         for i in range(0, self.n_layers):
             h, x = self._modules[f'gcl_{i}'](
                 h, edges, x, channel_attr, channel_weights,
@@ -178,14 +182,20 @@ class Prompt_AMEGNN(nn.Module):
             # cross-attn 
             if text_guidance:
                 h_padding,q_mask = self.q_padding(h,batch_ids)
-                if random.random()<0.5 and not inference:
-                    h_prompt1,_ = self._modules[f'attn_1{i}'](h_padding,prompt['prompt1'],prompt['prompt1'],key_padding_mask = ~key_mask['prompt1_mask'])
-                    h_prompt1 = h_prompt1[q_mask]
+                q_mask = q_mask.unsqueeze(-1)
+                if guidance1 or inference:
+                    key_mask = key_mask_list['prompt1_mask']
+                    # attn_mask = q_mask&key_mask
+                    h_prompt1,_ = self._modules[f'attn_1{i}'](h_padding,prompt['prompt1'],prompt['prompt1'],key_padding_mask = ~key_mask)
+                    h_prompt1 = h_prompt1[q_mask.squeeze(-1)]
                 else:
                     h_prompt1 = torch.zeros(h.shape[0],self.hidden_nf).to(h.device)
-                if random.random()<0.5 and not inference:
-                    h_prompt2,_ = self._modules[f'attn_2{i}'](h_padding,prompt['prompt2'],prompt['prompt2'],key_padding_mask = ~key_mask['prompt2_mask'])
-                    h_prompt2 = h_prompt2[q_mask]
+                # if random.random()<0.5 or inference:
+                if False:
+                    key_mask = key_mask_list['prompt2_mask'].unsqueeze(1)
+                    attn_mask = q_mask&key_mask
+                    h_prompt2,_ = self._modules[f'attn_2{i}'](h_padding,prompt['prompt2'],prompt['prompt2'],attn_mask = ~attn_mask)
+                    h_prompt2 = h_prompt2[q_mask.squeeze(-1)]
                 else:
                     h_prompt2 = torch.zeros(h.shape[0],self.hidden_nf).to(h.device)
                 h = self._modules[f'mix_{i}'](torch.concat([h,h_prompt1,h_prompt2],dim=-1))

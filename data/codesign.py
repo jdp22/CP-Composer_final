@@ -356,7 +356,9 @@ class PromptDataset(MMAPDataset):
             prompt1 = self._properties[idx][-2]
             prompt2 = self._properties[idx][-1]
         else:
-            prompt = self.text_guidance
+            # prompt = self.text_guidance
+            prompt1 = 'The length between the N-terminal and C-terminal atoms in the peptide is 3.8 Å.'	
+            prompt2 = 'The amino acid at the 7th position is Serine.'
         if False:
             one_hot_vector = torch.zeros(20)
             one_hot_vector[amino_acid_map[prompt[0]]-1] = 1

@@ -62,6 +62,7 @@ class Prompt_LDMPepDesign(LDMPepDesign):
             L: [bs, 3, 3], cholesky decomposition of the covariance matrix \Sigma = LL^T
         '''
 
+        X_init = X.clone()
         # encode latent_H_0 (N*d) and latent_X_0 (N*3)
         with torch.no_grad():
             self.autoencoder.eval()
@@ -104,6 +105,7 @@ class Prompt_LDMPepDesign(LDMPepDesign):
             atom_mask=atom_mask,
             key_mask=key_mask,
             L=L,
+            X_true=X_init,
             sample_structure=self.train_structure,
             sample_sequence=self.train_sequence
         )
@@ -131,6 +133,8 @@ class Prompt_LDMPepDesign(LDMPepDesign):
         return_tensor=False,
         optimize_sidechain=True,
     ):
+
+        X_init = X.clone()
         self.autoencoder.eval()
         # diffusion sample
         if self.train_sequence:
@@ -166,9 +170,9 @@ class Prompt_LDMPepDesign(LDMPepDesign):
                 sample_opt['energy_func'] = self.latent_geometry_guidance
             # otherwise this should be a function
         autoencoder_n_iter = sample_opt.pop('autoencoder_n_iter', 1)
-        
+
         traj = self.diffusion.sample(
-            H_0, X,prompt, position_embedding, mask, lengths, atom_embeddings, atom_mask, key_mask,L, **sample_opt)
+            H_0, X,prompt, position_embedding, mask, lengths, atom_embeddings, atom_mask, key_mask,L,X_init, **sample_opt)
         X_0, H_0 = traj[0]
         X_0, H_0 = X_0[mask][:, :self.autoencoder.latent_n_channel], H_0[mask]
 

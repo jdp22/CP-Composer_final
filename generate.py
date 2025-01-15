@@ -91,7 +91,7 @@ def generate_wrapper(model, sample_opt={}):
             return X, S, ppls
     elif isinstance(model, models.Prompt_LDMPepDesign):
         def wrapper(batch):
-            X, S, ppls = model.sample(batch['X'], batch['S'], batch['prompt'],batch['mask'], batch['position_ids'], batch['lengths'], batch['atom_mask'],batch['prompt_lengths'],L=batch['L'] if 'L' in batch else None, sample_opt=sample_opt)
+            X, S, ppls = model.sample(batch['X'], batch['S'], batch['prompt'],batch['mask'], batch['position_ids'], batch['lengths'], batch['atom_mask'],batch['key_mask'],L=batch['L'] if 'L' in batch else None, sample_opt=sample_opt)
             return X, S, ppls
     elif isinstance(model, models.LDMPepDesign):
         def wrapper(batch):
