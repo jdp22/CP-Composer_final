@@ -455,15 +455,14 @@ class PromptDPM(FullDPM):
             filter_indices = peptide_indices[is_valid]
             num_samples = int(torch.sum(is_valid).item()*0.7)
 
-            # # 获取所有非零（True）的位置
-            # true_positions = mask_generate.nonzero(as_tuple=True)[0]
-
-            # # 获取每个连续True的第一个True的位置
-            # first_true_positions = []
-            # for i in range(1, len(true_positions)):
-            #     if true_positions[i] != true_positions[i-1] + 1:
-            #         first_true_positions.append(true_positions[i-1])
+            # 获取每个连续True的第一个True的位置
+            positions = []
+            for i in range(1, len(mask_generate)):
+                if mask_generate[i] != mask_generate[i-1]:
+                    positions.append(i)
             
+            positions.append(len(mask_generate)-1)
+
             sample_indices = torch.randperm(filtered_edges.shape[1])[:num_samples]
             sampled_edges = filtered_edges[:, sample_indices]
             filter_indices = filter_indices[sample_indices]
@@ -545,7 +544,7 @@ class PromptDPM(FullDPM):
         elif self.text_encoder == 'MLP':
             prompt_H = self.prompt_encoder_H(prompt[batch_ids])
             
-        if random.random()<0.7:
+        if random.random()<0.5:
             eps_H_pred, eps_X_pred= self.eps_net(H_noisy, X_noisy,prompt,position_embedding, ctx_edges, inter_edges, atom_embeddings, atom_mask.float(), mask_generate, beta,ctx_edge_attr=ctx_edge_attr, inter_edge_attr=inter_edge_attr,guidance_edge_attr = guidance_edge_attr,k_mask=key_mask,batch_ids=batch_ids,text_guidance=True)
         else:
             guidance_edge_attr = torch.zeros_like(guidance_edge_attr)
@@ -661,7 +660,7 @@ class PromptDPM(FullDPM):
                 inter_edge_attr = self._get_edge_dist(self._unnormalize_position(X_t, centers, batch_ids, L), inter_edges, atom_mask)
                 guidance_edge_attr = self._get_edge_dist(X_true, sampled_edges, atom_mask)
                 
-                guidance_edge_attr.fill_(10)
+                guidance_edge_attr.fill_(0)
                 
                 ctx_edge_attr = self.dist_rbf(ctx_edge_attr).view(ctx_edges.shape[1], -1)
                 inter_edge_attr = self.dist_rbf(inter_edge_attr).view(inter_edges.shape[1], -1)
