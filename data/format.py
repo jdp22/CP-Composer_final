@@ -56,6 +56,7 @@ class MoleculeVocab:
         return None if idx is None else self.idx2block[idx][1]
 
     def abrv_to_idx(self, abrv):
+        'Use this function "CYS" to get the '
         abrv = abrv.upper()
         return self.abrv2idx.get(abrv, self.abrv2idx['UNK'])
 
