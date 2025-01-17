@@ -16,8 +16,16 @@ from .mmap_dataset import MMAPDataset
 from .resample import ClusterResampler
 from transformers import AutoTokenizer, AutoModel
 
-model = AutoModel.from_pretrained("/data/private/jdp/scibert")
-tokz = AutoTokenizer.from_pretrained("/data/private/jdp/scibert")
+# 指定模型名称，例如 "allenai/scibert_scivocab_uncased"
+model_name = "allenai/scibert_scivocab_uncased"
+
+# 指定保存路径
+save_path = "/data4/private/jdp/scibert"
+
+# 下载并保存模型
+model = AutoModel.from_pretrained(save_path)
+tokz = AutoTokenizer.from_pretrained(save_path)
+
 model.eval()
 
 # from transformers import AutoTokenizer, AutoModelForCausalLM
@@ -351,7 +359,7 @@ class PromptDataset(MMAPDataset):
         else:
             L = None
         
-        ## Use LLM to encode the text guidance
+        # Use LLM to encode the text guidance
         if self.text_guidance is None:
             prompt1 = self._properties[idx][-2]
             prompt2 = self._properties[idx][-1]

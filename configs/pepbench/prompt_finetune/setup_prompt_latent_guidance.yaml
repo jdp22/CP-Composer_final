@@ -1,8 +1,8 @@
 dataset:
   test:
     class: PromptDataset
-    mmap_dir: /data/private/jdp/PepGLAD/datasets/train_valid/processed
-    specify_index: /data/private/jdp/PepGLAD/datasets/train_valid/processed/prompt_train_distance_index_augmentation.txt
+    mmap_dir: /data4/private/jdp/PepGLAD/datasets/train_valid/processed
+    specify_index: /data4/private/jdp/PepGLAD/datasets/train_valid/processed/prompt_train_distance_index_augmentation.txt
     backbone_only: false
 
 dataloader:

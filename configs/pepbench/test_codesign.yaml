@@ -1,13 +1,13 @@
 dataset:
   test:
     class: CoDesignDataset
-    mmap_dir: /data/private/jdp/PepGLAD/datasets/LNR/processed
+    mmap_dir: /data4/private/jdp/PepGLAD/datasets/LNR/processed
     backbone_only: false
     use_covariance_matrix: true
 
 dataloader:
   num_workers: 4
-  batch_size: 64
+  batch_size: 16
 
 backbone_only: false
 n_samples: 2
