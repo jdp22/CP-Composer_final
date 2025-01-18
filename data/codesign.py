@@ -20,7 +20,7 @@ from transformers import AutoTokenizer, AutoModel
 model_name = "allenai/scibert_scivocab_uncased"
 
 # 指定保存路径
-save_path = "/data4/private/jdp/scibert"
+save_path = "/data/private/jdp/scibert"
 
 # 下载并保存模型
 model = AutoModel.from_pretrained(save_path)
@@ -39,51 +39,51 @@ model.eval()
 # )
 # Qw_tokenizer = AutoTokenizer.from_pretrained(model_name)
 
-# amino_acid_map = {
-#     'A': 1,  # Alanine
-#     'R': 2,  # Arginine
-#     'N': 3,  # Asparagine
-#     'D': 4,  # Aspartic acid
-#     'C': 5,  # Cysteine
-#     'E': 6,  # Glutamic acid
-#     'Q': 7,  # Glutamine
-#     'G': 8,  # Glycine
-#     'H': 9,  # Histidine
-#     'I': 10, # Isoleucine
-#     'L': 11, # Leucine
-#     'K': 12, # Lysine
-#     'M': 13, # Methionine
-#     'F': 14, # Phenylalanine
-#     'P': 15, # Proline
-#     'S': 16, # Serine
-#     'T': 17, # Threonine
-#     'W': 18, # Tryptophan
-#     'Y': 19, # Tyrosine
-#     'V': 20  # Valine
-# }
-
 amino_acid_map = {
-    'A': 'Alanine',
-    'R': 'Arginine',
-    'N': 'Asparagine',
-    'D': 'Aspartic acid',
-    'C': 'Cysteine',
-    'E': 'Glutamic acid',
-    'Q': 'Glutamine',
-    'G': 'Glycine',
-    'H': 'Histidine',
-    'I': 'Isoleucine',
-    'L': 'Leucine',
-    'K': 'Lysine',
-    'M': 'Methionine',
-    'F': 'Phenylalanine',
-    'P': 'Proline',
-    'S': 'Serine',
-    'T': 'Threonine',
-    'W': 'Tryptophan',
-    'Y': 'Tyrosine',
-    'V': 'Valine'
+    'A': 1,  # Alanine
+    'R': 2,  # Arginine
+    'N': 3,  # Asparagine
+    'D': 4,  # Aspartic acid
+    'C': 5,  # Cysteine
+    'E': 6,  # Glutamic acid
+    'Q': 7,  # Glutamine
+    'G': 8,  # Glycine
+    'H': 9,  # Histidine
+    'I': 10, # Isoleucine
+    'L': 11, # Leucine
+    'K': 12, # Lysine
+    'M': 13, # Methionine
+    'F': 14, # Phenylalanine
+    'P': 15, # Proline
+    'S': 16, # Serine
+    'T': 17, # Threonine
+    'W': 18, # Tryptophan
+    'Y': 19, # Tyrosine
+    'V': 20  # Valine
 }
+
+# amino_acid_map = {
+#     'A': 'Alanine',
+#     'R': 'Arginine',
+#     'N': 'Asparagine',
+#     'D': 'Aspartic acid',
+#     'C': 'Cysteine',
+#     'E': 'Glutamic acid',
+#     'Q': 'Glutamine',
+#     'G': 'Glycine',
+#     'H': 'Histidine',
+#     'I': 'Isoleucine',
+#     'L': 'Leucine',
+#     'K': 'Lysine',
+#     'M': 'Methionine',
+#     'F': 'Phenylalanine',
+#     'P': 'Proline',
+#     'S': 'Serine',
+#     'T': 'Threonine',
+#     'W': 'Tryptophan',
+#     'Y': 'Tyrosine',
+#     'V': 'Valine'
+# }
 
 
 
@@ -363,6 +363,14 @@ class PromptDataset(MMAPDataset):
         if self.text_guidance is None:
             prompt1 = self._properties[idx][-2]
             prompt2 = self._properties[idx][-1]
+            atom_sequence = self._properties[idx][-5]
+            atom_embedding_list = []
+            for i in range(len(atom_sequence)):
+                atom = atom_sequence[i]
+                one_hot_vector = torch.zeros(20)
+                one_hot_vector[amino_acid_map[atom]-1] = 1
+                atom_embedding_list.append(one_hot_vector)
+            atom_embedding = torch.stack(atom_embedding_list,dim=0)
         else:
             # prompt = self.text_guidance
             prompt1 = 'The length between the N-terminal and C-terminal atoms in the peptide is 3.8 Å.'	
@@ -389,6 +397,7 @@ class PromptDataset(MMAPDataset):
             'mask': mask,                                                   # [N], 1 for generation
             'atom_mask': atom_mask,                                         # [N, 14] or [N, 4], 1 for having records in the PDB
             'lengths': len(S),
+            'atom_gt':atom_embedding
         }
 
         if L is not None:
@@ -415,7 +424,8 @@ class PromptDataset(MMAPDataset):
                     prompts = [x['prompt'] for x in batch]
                     results['prompt'] = pad_sequence(prompts, batch_first=True, padding_value=0.0)
                 else:
-                    results[key] = pad_sequence(values, batch_first=True, padding_value=0)
+                    # results[key] = pad_sequence(values, batch_first=True, padding_value=0)
+                    results[key] = torch.cat(values, dim=0)
             return results
         else:
             for key in batch[0]:
