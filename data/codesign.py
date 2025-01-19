@@ -370,7 +370,6 @@ class PromptDataset(MMAPDataset):
             prompt2 = 'The amino acid at the 7th position is Serine.'
             atom_sequence = self._properties[idx][-3]
 
-        
         atom_embedding_list = []
         for i in range(len(atom_sequence)):
             atom = atom_sequence[i]
