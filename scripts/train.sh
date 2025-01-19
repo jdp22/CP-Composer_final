@@ -34,6 +34,7 @@ echo "Using GPUs: $GPU"
 echo "Master address: ${MASTER_ADDR}, Master port: ${MASTER_PORT}"
 
 export CUDA_VISIBLE_DEVICES=$GPU
+export CUDA_LAUNCH_BLOCKING=1
 GPU_ARR=(`echo $GPU | tr ',' ' '`)
 
 if [ ${#GPU_ARR[@]} -gt 1 ]; then

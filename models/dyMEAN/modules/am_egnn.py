@@ -77,7 +77,10 @@ class AMEGNN(nn.Module):
         )
     
     def forward(self, h, x, edges, channel_attr, channel_weights, ctx_edge_attr=None, x_update_mask=None,guidance_edge_attr=None,guidance_edges=None):
-        h = self.linear_in(h)
+        try:
+            h = self.linear_in(h)
+        except:
+            breakpoint()
         h = self.dropout(h)
 
         ctx_states, ctx_coords = [], []

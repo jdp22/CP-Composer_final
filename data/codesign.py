@@ -364,17 +364,20 @@ class PromptDataset(MMAPDataset):
             prompt1 = self._properties[idx][-2]
             prompt2 = self._properties[idx][-1]
             atom_sequence = self._properties[idx][-5]
-            atom_embedding_list = []
-            for i in range(len(atom_sequence)):
-                atom = atom_sequence[i]
-                one_hot_vector = torch.zeros(20)
-                one_hot_vector[amino_acid_map[atom]-1] = 1
-                atom_embedding_list.append(one_hot_vector)
-            atom_embedding = torch.stack(atom_embedding_list,dim=0)
         else:
             # prompt = self.text_guidance
             prompt1 = 'The length between the N-terminal and C-terminal atoms in the peptide is 3.8 Å.'	
             prompt2 = 'The amino acid at the 7th position is Serine.'
+            atom_sequence = self._properties[idx][-3]
+
+        
+        atom_embedding_list = []
+        for i in range(len(atom_sequence)):
+            atom = atom_sequence[i]
+            one_hot_vector = torch.zeros(20)
+            one_hot_vector[amino_acid_map[atom]-1] = 1
+            atom_embedding_list.append(one_hot_vector)
+        atom_embedding = torch.stack(atom_embedding_list,dim=0)
         if False:
             one_hot_vector = torch.zeros(20)
             one_hot_vector[amino_acid_map[prompt[0]]-1] = 1

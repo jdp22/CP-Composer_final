@@ -92,11 +92,14 @@ class EpsilonNet(nn.Module):
         if ctx_edge_attr is None:
             edge_attr = edge_embed
         else:
-            edge_attr = torch.cat([
-                edge_embed,
-                torch.cat([ctx_edge_attr, inter_edge_attr], dim=0)],
-                dim=-1
-            ) # [E, embed size + edge_attr_size]
+            try:
+                edge_attr = torch.cat([
+                    edge_embed,
+                    torch.cat([ctx_edge_attr, inter_edge_attr], dim=0)],
+                    dim=-1
+                ) # [E, embed size + edge_attr_size]
+            except:
+                breakpoint()
         # next_H, next_X = self.encoder(in_feat, X_noisy,prompt, edges,key_mask_list = k_mask, ctx_edge_attr=edge_attr, channel_attr=atom_embeddings, channel_weights=atom_weights,batch_ids=batch_ids,text_guidance = text_guidance,inference = inference)
         next_H, next_X = self.encoder(in_feat, X_noisy, edges, ctx_edge_attr=edge_attr, channel_attr=atom_embeddings, channel_weights=atom_weights,guidance_edges = guidance_edges,guidance_edge_attr = guidance_edge_attr)
 
@@ -439,49 +442,53 @@ class PromptDPM(FullDPM):
         inter_edges = torch.stack([row[is_inter], col[is_inter]], dim=0) # [2, Ei]
 
         if sample:
-            shifted_tensor = torch.roll(mask_generate, shifts=-3)  # 将tensor向左滚动3个位置
-            inner_positions = mask_generate & shifted_tensor  # 检查位置i和i+3是否都为True
+            sampled_edges = []
+            for k in [3,4,6]:
+                shifted_tensor = torch.roll(mask_generate, shifts=-k)  # 
+                shifted_tensor[-k:] = False
+                inner_positions = mask_generate & shifted_tensor  # 检查位置i和i+3是否都为True
 
-            inner_positions = torch.nonzero(inner_positions).squeeze()
-            def find_consecutive_groups(tensor):
-                groups = []
-                group = [tensor[0]]
-                for i in range(1, len(tensor)):
-                    if tensor[i] == tensor[i-1] + 1:
-                        group.append(tensor[i])
-                    else:
-                        groups.append(group)
-                        group = [tensor[i]]
-                groups.append(group)  
-                return groups
+                inner_positions = torch.nonzero(inner_positions).squeeze()
+                if inner_positions is None:
+                    continue
+                def find_consecutive_groups(tensor):
+                    groups = []
+                    group = [tensor[0]]
+                    for i in range(1, len(tensor)):
+                        if tensor[i] == tensor[i-1] + 1:
+                            group.append(tensor[i])
+                        else:
+                            groups.append(group)
+                            group = [tensor[i]]
+                    groups.append(group)  
+                    return groups
 
-            def sample_from_groups(groups):
-                sampled = []
-                for group in groups:
-                    num_to_sample = random.randint(1, min(4, len(group)))  # 随机选择1到4个数字
-                    sampled+=random.sample(group, num_to_sample)
-                return sampled
-            
-            groups = find_consecutive_groups(inner_positions)
+                def sample_from_groups(groups):
+                    sampled = []
+                    for group in groups:
+                        num_to_sample = random.randint(0, min(2, len(group)))  # 随机选择1到4个数字
+                        sampled+=random.sample(group, num_to_sample)
+                    return sampled
+                
+                groups = find_consecutive_groups(inner_positions)
 
-            sampled_numbers = sample_from_groups(groups)
+                sampled_numbers = sample_from_groups(groups)
+                if len(sampled_numbers)==0:
+                    continue
+                inner_positions1 = []
+                inner_positions2 = []
+                for sampled_number in sampled_numbers:
+                    if sampled_number+k>len(mask_generate)-1:
+                        continue
+                    inner_positions1.append(sampled_number)
+                    inner_positions2.append(sampled_number+k)
+                inner_positions1 = torch.stack(inner_positions1)
+                inner_positions2 = torch.stack(inner_positions2)
+                inner_edges = torch.stack([inner_positions1, inner_positions2], dim=0)
+                reversed_inner_edges = inner_edges.flip(0)
 
-            inner_positions1 = []
-            inner_positions2 = []
-            for sampled_number in sampled_numbers:
-                inner_positions1.append(sampled_number)
-                inner_positions2.append(sampled_number+3)
-            inner_positions1 = torch.stack(inner_positions1)
-            inner_positions2 = torch.stack(inner_positions2)
-            inner_edges = torch.stack([inner_positions1, inner_positions2], dim=0)
-            reversed_inner_edges = inner_edges.flip(0)
-
-            is_peptide = mask_generate[row] & mask_generate[col]
-            peptide_indices = torch.where(is_peptide)[0]
-            peptide_edges = torch.stack([row[is_peptide], col[is_peptide]], dim=0)
-
-            # filtered_edges = peptide_edges[:, is_valid]
-            # filter_indices = peptide_indices[is_valid]
+                sampled_edges.append(inner_edges)
+                sampled_edges.append(reversed_inner_edges)
             
             # 获取每个连续True的第一个True的位置
             head_positions = []
@@ -497,21 +504,10 @@ class PromptDPM(FullDPM):
             tail_positions = torch.tensor(tail_positions).to(col.device)
 
             sampled_ht_edges = torch.stack([head_positions, tail_positions], dim=0)
-                # num_samples = random.randint(1, min(5,sampled_edges.shape[1]))
-                # sample_indices = torch.randperm(sampled_edges.shape[1])[:num_samples]
-                # sampled_edges = sampled_edges[:, sample_indices]
-
-            filter_indices = torch.where(
-            (row==sampled_ht_edges[0][:,None]) & (col==sampled_ht_edges[1][:,None])
-            )[1]
-            
             reversed_edges = sampled_ht_edges.flip(0)
-            reversed_indices = torch.where(
-            (row == reversed_edges[0][:, None]) & (col == reversed_edges[1][:, None])
-            )[1]
-            
-            augmented_edges = torch.cat([sampled_ht_edges, reversed_edges,inner_edges,reversed_inner_edges], dim=1)
-            augmented_indices = torch.cat([filter_indices, reversed_indices], dim=0)
+            sampled_edges.append(sampled_ht_edges)
+            sampled_edges.append(reversed_edges)
+            augmented_edges = torch.cat(sampled_edges, dim=1)
             return ctx_edges, inter_edges,augmented_edges
         return ctx_edges, inter_edges
         
@@ -549,7 +545,6 @@ class PromptDPM(FullDPM):
             H_noisy, eps_H = H_0, torch.zeros_like(H_0)
 
         ctx_edges, inter_edges,sampled_edges = self._get_edges(mask_generate, batch_ids, lengths,sample=True)
-        
         if hasattr(self, 'dist_rbf'):
             ctx_edge_attr = self._get_edge_dist(self._unnormalize_position(X_noisy, centers, batch_ids, L), ctx_edges, atom_mask)
             inter_edge_attr = self._get_edge_dist(self._unnormalize_position(X_noisy, centers, batch_ids, L), inter_edges, atom_mask)
@@ -561,24 +556,9 @@ class PromptDPM(FullDPM):
             ctx_edge_attr, inter_edge_attr = None, None
 
         beta = self.trans_x.get_timestamp(t)[batch_ids]  # [N]
-        # max_prompt_length = prompt_lengths.max()
-        # key_mask = torch.arange(max_prompt_length).expand(batch_size, max_prompt_length).to(prompt_lengths.device) < prompt_lengths.unsqueeze(1)
-        
-        # Train a eps net with text guidance
-        # prompt = prompt[batch_ids]
-        if self.text_encoder == 'Attention':
-            pass
-            # padding_mask = self.generate_padding_mask(batch_ids)
-            # sequence_H,attn_mask = self.organize_to_batches(H_noisy,batch_ids)
-            # # sequence_X = self.organize_to_batches(X_noisy.view(X_noisy.shape[0],-1),batch_ids)
-            # prompt_H,_= self.attention_H(sequence_H,prompt,prompt,mask=attn_mask)
-            # prompt_H = prompt_H[padding_mask]
-            ## TODO: the update of X
-        # elif self.text_encoder == 'MLP':
-        #     prompt_H = self.prompt_encoder_H(prompt[batch_ids])
         atom_full_tmp = torch.zeros((mask_generate.shape[0],atom_gt.shape[1])).to(guidance_edge_attr.device)
         atom_full_tmp[mask_generate] = atom_gt
-
+        
         # 获取所有唯一的数字
         unique_vals = torch.unique(batch_ids)
 
@@ -686,7 +666,7 @@ class PromptDPM(FullDPM):
         """
         # if L is not None: 
         #     L = L / self.std
-        self.w = 3
+        self.w = 1
         batch_ids = self._get_batch_ids(mask_generate, lengths)
         batch_size = batch_ids.max() + 1
         X, centers = self._normalize_position(X, batch_ids, mask_generate, atom_mask, L)
@@ -725,7 +705,7 @@ class PromptDPM(FullDPM):
                 inter_edge_attr = self._get_edge_dist(self._unnormalize_position(X_t, centers, batch_ids, L), inter_edges, atom_mask)
                 guidance_edge_attr = self._get_edge_dist(X_true, sampled_edges, atom_mask)
                 
-                guidance_edge_attr.fill_(5)
+                guidance_edge_attr.fill_(3.8)
                 
                 ctx_edge_attr = self.dist_rbf(ctx_edge_attr).view(ctx_edges.shape[1], -1)
                 inter_edge_attr = self.dist_rbf(inter_edge_attr).view(inter_edges.shape[1], -1)
@@ -758,13 +738,19 @@ class PromptDPM(FullDPM):
                 indices = valid_indices.nonzero(as_tuple=True)[0]
                 
                 # 抽样 A 个位置
-                sampled = indices[torch.randint(0, indices.size(0), (random.randint(1, min(4, len(indices))),))]
-                
+                # sampled = indices[torch.randint(0, indices.size(0), (random.randint(1, min(4, len(indices))),))]
+                if len(indices)<4:
+                    continue
+                sampled = [indices[0],indices[3]]
                 sampled_indices+=sampled
             sampled_indices = torch.tensor(sampled_indices).to(guidance_edge_attr.device)
             atom_full = torch.zeros((mask_generate.shape[0],atom_gt.shape[1])).to(guidance_edge_attr.device)
-            atom_full[sampled_indices] = atom_full_tmp[sampled_indices]
+            one_hot_vector = torch.zeros(20).to(guidance_edge_attr.device)
+            one_hot_vector[4] = 1
+            one_hot_vector = one_hot_vector.unsqueeze(0).repeat(len(sampled_indices),1)
+            atom_full[sampled_indices] = one_hot_vector
             
+            # atom_full,sampled_edges,guidance_edge_attr = self.condition3(atom_gt,batch_ids,mask_generate,X_true,atom_mask)
             prompted_eps_H_pred, prompted_eps_X_pred= self.eps_net(H_t, X_t,prompt,position_embedding, ctx_edges, inter_edges, atom_embeddings, atom_mask.float(), mask_generate, beta,atom_gt=atom_full,ctx_edge_attr=ctx_edge_attr, inter_edge_attr=inter_edge_attr,guidance_edges=sampled_edges,guidance_edge_attr = guidance_edge_attr,k_mask=key_mask,batch_ids=batch_ids,text_guidance=True)
 
             atom_full = torch.zeros_like(atom_full)
@@ -805,6 +791,74 @@ class PromptDPM(FullDPM):
             # traj[t] = tuple(x.cpu() for x in traj[t])    # Move previous states to cpu memory.
         traj[0] = (self._unnormalize_position(traj[0][0], centers, batch_ids, L), traj[0][1])
         return traj
+    
+    def condition2(self,atom_gt,batch_ids,mask_generate,X_true,atom_mask):
+        '''
+        The distance of head and tail is less than 6 A
+        '''
+        atom_full = torch.zeros((mask_generate.shape[0],atom_gt.shape[1])).to(atom_gt.device)
+
+        head_positions = []
+        tail_positions = []
+        for i in range(1, len(mask_generate)):
+            if mask_generate[i] != mask_generate[i-1]:
+                if mask_generate[i]:
+                    head_positions.append(i)
+                else:
+                    tail_positions.append(i-1)
+        tail_positions.append(len(mask_generate)-1)
+        head_positions = torch.tensor(head_positions).to(atom_gt.device)
+        tail_positions = torch.tensor(tail_positions).to(atom_gt.device)
+
+        sampled_ht_edges = torch.stack([head_positions, tail_positions], dim=0)
+        reversed_edges = sampled_ht_edges.flip(0)
+        
+        sampled_edges = torch.cat([sampled_ht_edges, reversed_edges], dim=1)
+        guidance_edge_attr = self._get_edge_dist(X_true, sampled_edges, atom_mask)       
+        guidance_edge_attr.fill_(3.8)      
+        guidance_edge_attr = self.guidance_dist_rbf(guidance_edge_attr).view(sampled_edges.shape[1], -1)
+
+        return atom_full,sampled_edges,guidance_edge_attr
+    
+    def condition3(self,atom_gt,batch_ids,mask_generate,X_true,atom_mask):
+        '''
+        two positions Cys with distance between 3.5-5 A
+        '''
+        unique_vals = torch.unique(batch_ids)
+        sampled_indices = []
+        positions1 = []
+        positions2 = []
+        for val in unique_vals:
+            valid_indices = (batch_ids == val) & mask_generate
+            indices = valid_indices.nonzero(as_tuple=True)[0]
+            
+            if len(indices)<4:
+                continue
+            sampled = [indices[0],indices[3]]
+            positions1.append(indices[0])
+            positions2.append(indices[3])
+            sampled_indices+=sampled
+        sampled_indices = torch.tensor(sampled_indices).to(atom_gt.device)
+        atom_full = torch.zeros((mask_generate.shape[0],atom_gt.shape[1])).to(atom_gt.device)
+        one_hot_vector = torch.zeros(20).to(atom_gt.device)
+        one_hot_vector[4] = 1
+        one_hot_vector = one_hot_vector.unsqueeze(0).repeat(len(sampled_indices),1)
+        atom_full[sampled_indices] = one_hot_vector
+
+        positions1 = torch.stack(positions1)
+        positions2 = torch.stack(positions2)
+        edges = torch.stack([positions1, positions2], dim=0)
+        reversed_edges = edges.flip(0)
+
+        sampled_edges = torch.cat([edges,reversed_edges], dim=1)
+        guidance_edge_attr = self._get_edge_dist(X_true, sampled_edges, atom_mask)       
+        guidance_edge_attr.fill_(3.8)      
+        guidance_edge_attr = self.guidance_dist_rbf(guidance_edge_attr).view(sampled_edges.shape[1], -1)
+
+        return atom_full,sampled_edges,guidance_edge_attr
+
+        
+
     
 class CrossAttention(nn.Module):
     def __init__(self, hidden_dim, k_dim,v_dim,num_heads, dropout=0.1):
