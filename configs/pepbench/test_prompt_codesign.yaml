@@ -8,10 +8,10 @@ dataset:
 
 dataloader:
   num_workers: 4
-  batch_size: 32
+  batch_size: 64
 
 backbone_only: false
-n_samples: 2
+n_samples: 5
 guidance_strength: 10
 
 # sample_opt:

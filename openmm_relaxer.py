@@ -155,4 +155,5 @@ class ForceFieldMinimizer(object):
 if __name__ == '__main__':
     import sys
     force_field = ForceFieldMinimizer()
+    # force_field(sys.argv[1], sys.argv[2], cyclic_chains=['B'])
     force_field(sys.argv[1], sys.argv[2], cyclic_chains=['B'])
