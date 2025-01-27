@@ -1,0 +1,80 @@
+<ForceField>
+  <Residues>
+    <Residue name="LYSA">
+      <Atom charge="-0.47" name="N" type="NH1"/>
+      <Atom charge="0.31" name="HN" type="H"/>
+      <Atom charge="0.07" name="CA" type="CT1"/>
+      <Atom charge="0.09" name="HA" type="HB1"/>
+      <Atom charge="-0.18" name="CB" type="CT2"/>
+      <Atom charge="0.09" name="HB1" type="HA2"/>
+      <Atom charge="0.09" name="HB2" type="HA2"/>
+      <Atom charge="-0.18" name="CG" type="CT2"/>
+      <Atom charge="0.09" name="HG1" type="HA2"/>
+      <Atom charge="0.09" name="HG2" type="HA2"/>
+      <Atom charge="-0.18" name="CD" type="CT2"/>
+      <Atom charge="0.09" name="HD1" type="HA2"/>
+      <Atom charge="0.09" name="HD2" type="HA2"/>
+      <Atom charge="0.21" name="CE" type="CT2"/>
+      <Atom charge="0.05" name="HE1" type="HA2"/>
+      <Atom charge="0.05" name="HE2" type="HA2"/>
+      <Atom charge="-0.3" name="NZ" type="NH1"/>
+      <Atom charge="0.31" name="HZ1" type="H"/>
+      <Atom charge="0.51" name="C" type="C"/>
+      <Atom charge="-0.51" name="O" type="O"/>
+      <Bond atomName1="CB" atomName2="CA"/>
+      <Bond atomName1="CG" atomName2="CB"/>
+      <Bond atomName1="CD" atomName2="CG"/>
+      <Bond atomName1="CE" atomName2="CD"/>
+      <Bond atomName1="NZ" atomName2="CE"/>
+      <Bond atomName1="N" atomName2="HN"/>
+      <Bond atomName1="N" atomName2="CA"/>
+      <Bond atomName1="C" atomName2="CA"/>
+      <Bond atomName1="CA" atomName2="HA"/>
+      <Bond atomName1="CB" atomName2="HB1"/>
+      <Bond atomName1="CB" atomName2="HB2"/>
+      <Bond atomName1="CG" atomName2="HG1"/>
+      <Bond atomName1="CG" atomName2="HG2"/>
+      <Bond atomName1="CD" atomName2="HD1"/>
+      <Bond atomName1="CD" atomName2="HD2"/>
+      <Bond atomName1="CE" atomName2="HE1"/>
+      <Bond atomName1="CE" atomName2="HE2"/>
+      <Bond atomName1="O" atomName2="C"/>
+      <Bond atomName1="NZ" atomName2="HZ1"/>
+      <ExternalBond atomName="N"/>
+      <ExternalBond atomName="C"/>
+      <ExternalBond atomName="NZ"/>
+    </Residue>
+    <Residue name="GLUA">
+      <Atom charge="-0.47" name="N" type="NH1"/>
+      <Atom charge="0.31" name="HN" type="H"/>
+      <Atom charge="0.07" name="CA" type="CT1"/>
+      <Atom charge="0.09" name="HA" type="HB1"/>
+      <Atom charge="-0.18" name="CB" type="CT2A"/>
+      <Atom charge="0.09" name="HB1" type="HA2"/>
+      <Atom charge="0.09" name="HB2" type="HA2"/>
+      <Atom charge="-0.28" name="CG" type="CT2"/>
+      <Atom charge="0.09" name="HG1" type="HA2"/>
+      <Atom charge="0.09" name="HG2" type="HA2"/>
+      <Atom charge="0.62" name="CD" type="C"/>
+      <Atom charge="-0.76" name="OE1" type="O"/>
+      <Atom charge="0.51" name="C" type="C"/>
+      <Atom charge="-0.51" name="O" type="O"/>
+      <Bond atomName1="CB" atomName2="CA"/>
+      <Bond atomName1="CG" atomName2="CB"/>
+      <Bond atomName1="CD" atomName2="CG"/>
+      <Bond atomName1="N" atomName2="HN"/>
+      <Bond atomName1="N" atomName2="CA"/>
+      <Bond atomName1="C" atomName2="CA"/>
+      <Bond atomName1="CA" atomName2="HA"/>
+      <Bond atomName1="CB" atomName2="HB1"/>
+      <Bond atomName1="CB" atomName2="HB2"/>
+      <Bond atomName1="CG" atomName2="HG1"/>
+      <Bond atomName1="CG" atomName2="HG2"/>
+      <Bond atomName1="O" atomName2="C"/>
+      <Bond atomName1="CD" atomName2="OE1"/>
+      <ExternalBond atomName="N"/>
+      <ExternalBond atomName="C"/>
+      <ExternalBond atomName="CD"/>
+    </Residue>
+  </Residues>
+</ForceField>
