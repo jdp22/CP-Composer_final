@@ -1,6 +1,7 @@
 <ForceField>
   <Residues>
     <Residue name="LYSA">
+      <!-- LYS with NZ forming amide bonds to other residues -->
       <Atom charge="-0.47" name="N" type="NH1"/>
       <Atom charge="0.31" name="HN" type="H"/>
       <Atom charge="0.07" name="CA" type="CT1"/>
@@ -45,6 +46,7 @@
       <ExternalBond atomName="NZ"/>
     </Residue>
     <Residue name="GLUA">
+      <!-- GLU with CD forming amide bonds to other residues -->
       <Atom charge="-0.47" name="N" type="NH1"/>
       <Atom charge="0.31" name="HN" type="H"/>
       <Atom charge="0.07" name="CA" type="CT1"/>
@@ -75,6 +77,82 @@
       <ExternalBond atomName="N"/>
       <ExternalBond atomName="C"/>
       <ExternalBond atomName="CD"/>
+    </Residue>
+    <Residue name="CYSC">
+      <Atom charge="-0.47" name="N" type="NH1"/>
+      <Atom charge="0.31" name="HN" type="H"/>
+      <Atom charge="0.07" name="CA" type="CT1"/>
+      <Atom charge="0.09" name="HA" type="HB1"/>
+      <Atom charge="-0.11" name="CB" type="CT2"/>
+      <Atom charge="0.09" name="HB1" type="HA2"/>
+      <Atom charge="0.09" name="HB2" type="HA2"/>
+      <Atom charge="-0.09" name="SG" type="S"/>
+      <Atom charge="0.51" name="C" type="C"/>
+      <Atom charge="-0.51" name="O" type="O"/>
+      <Bond atomName1="CB" atomName2="CA"/>
+      <Bond atomName1="SG" atomName2="CB"/>
+      <Bond atomName1="N" atomName2="HN"/>
+      <Bond atomName1="N" atomName2="CA"/>
+      <Bond atomName1="C" atomName2="CA"/>
+      <Bond atomName1="CA" atomName2="HA"/>
+      <Bond atomName1="CB" atomName2="HB1"/>
+      <Bond atomName1="CB" atomName2="HB2"/>
+      <Bond atomName1="O" atomName2="C"/>
+      <ExternalBond atomName="N"/>
+      <ExternalBond atomName="C"/>
+      <ExternalBond atomName="SG"/>
+      <AllowPatch name="NTER"/>
+      <AllowPatch name="CTER"/>
+    </Residue>
+    <Residue name="TMB">
+      <!-- 1,3,5-trimethylbenezene with the methyl connecting to other atoms -->
+      <Atom charge="0.0" name="CG" type="CG2R61"/>
+      <Atom charge="-0.115" name="CD1" type="CG2R61"/>
+      <Atom charge="0.115" name="HD1" type="HGR61"/>
+      <Atom charge="-0.115" name="CD2" type="CG2R61"/>
+      <Atom charge="0.115" name="HD2" type="HGR61"/>
+      <Atom charge="0.0" name="CE1" type="CG2R61"/>
+      <Atom charge="0.0" name="CE2" type="CG2R61"/>
+      <Atom charge="-0.115" name="CZ" type="CG2R61"/>
+      <Atom charge="0.115" name="HZ" type="HGR61"/>
+      <!-- methyl 1 -->
+      <Atom charge="-0.18" name="CM1" type="CG331"/>
+      <Atom charge="0.09" name="H11" type="HGA3"/>
+      <Atom charge="0.09" name="H12" type="HGA3"/>
+      <!-- methyl 2 -->
+      <Atom charge="-0.18" name="CM2" type="CG331"/>
+      <Atom charge="0.09" name="H21" type="HGA3"/>
+      <Atom charge="0.09" name="H22" type="HGA3"/>
+      <!-- methyl 3 -->
+      <Atom charge="-0.18" name="CM3" type="CG331"/>
+      <Atom charge="0.09" name="H31" type="HGA3"/>
+      <Atom charge="0.09" name="H32" type="HGA3"/>
+      <!-- bonds for benezene -->
+      <Bond atomName1="CD1" atomName2="CG"/>
+      <Bond atomName1="CD2" atomName2="CG"/>
+      <Bond atomName1="CE1" atomName2="CD1"/>
+      <Bond atomName1="CE2" atomName2="CD2"/>
+      <Bond atomName1="CZ" atomName2="CE1"/>
+      <Bond atomName1="CZ" atomName2="CE2"/>
+      <Bond atomName1="CD1" atomName2="HD1"/>
+      <Bond atomName1="CD2" atomName2="HD2"/>
+      <Bond atomName1="CZ" atomName2="HZ"/>
+      <!-- bonds for methyl 1 -->
+      <Bond atomName1="CM1" atomName2="CG"/>
+      <Bond atomName1="CM1" atomName2="H11"/>
+      <Bond atomName1="CM1" atomName2="H12"/>
+      <!-- bonds for methyl 2 -->
+      <Bond atomName1="CM2" atomName2="CE1"/>
+      <Bond atomName1="CM2" atomName2="H21"/>
+      <Bond atomName1="CM2" atomName2="H22"/>
+      <!-- bonds for methyl 3 -->
+      <Bond atomName1="CM3" atomName2="CE2"/>
+      <Bond atomName1="CM3" atomName2="H31"/>
+      <Bond atomName1="CM3" atomName2="H32"/>
+      <!-- external -->
+      <ExternalBond atomName="CM1"/>
+      <ExternalBond atomName="CM2"/>
+      <ExternalBond atomName="CM3"/>
     </Residue>
   </Residues>
 </ForceField>
