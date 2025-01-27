@@ -21,22 +21,107 @@ TMB_PATH = os.path.abspath(os.path.join(
     os.path.dirname(__file__), 'custom', '1_3_5_TMB_with_H.pdb'
 ))
 
-def _dummy_tmb(center, chain_id):
+
+# from https://github.com/charnley/rmsd/blob/master/rmsd/calculate_rmsd.py
+def kabsch_rotation(P, Q):
+    """
+    Using the Kabsch algorithm with two sets of paired point P and Q, centered
+    around the centroid. Each vector set is represented as an NxD
+    matrix, where D is the the dimension of the space.
+    The algorithm works in three steps:
+    - a centroid translation of P and Q (assumed done before this function
+      call)
+    - the computation of a covariance matrix C
+    - computation of the optimal rotation matrix U
+    For more info see http://en.wikipedia.org/wiki/Kabsch_algorithm
+    Parameters
+    ----------
+    P : array
+        (N,D) matrix, where N is points and D is dimension.
+    Q : array
+        (N,D) matrix, where N is points and D is dimension.
+    Returns
+    -------
+    U : matrix
+        Rotation matrix (D,D)
+    """
+
+    # Computation of the covariance matrix
+    C = np.dot(np.transpose(P), Q)
+
+    # Computation of the optimal rotation matrix
+    # This can be done using singular value decomposition (SVD)
+    # Getting the sign of the det(V)*(W) to decide
+    # whether we need to correct our rotation matrix to ensure a
+    # right-handed coordinate system.
+    # And finally calculating the optimal rotation matrix U
+    # see http://en.wikipedia.org/wiki/Kabsch_algorithm
+    V, S, W = np.linalg.svd(C)
+    d = (np.linalg.det(V) * np.linalg.det(W)) < 0.0
+
+    if d:
+        S[-1] = -S[-1]
+        V[:, -1] = -V[:, -1]
+
+    # Create Rotation matrix U
+    U = np.dot(V, W)
+
+    return U
+
+
+# have been validated with kabsch from RefineGNN
+def kabsch(a, b):
+    # find optimal rotation matrix to transform a into b
+    # a, b are both [N, 3]
+    # a_aligned = aR + t
+    a, b = np.array(a), np.array(b)
+    a_mean = np.mean(a, axis=0)
+    b_mean = np.mean(b, axis=0)
+    a_c = a - a_mean
+    b_c = b - b_mean
+
+    rotation = kabsch_rotation(a_c, b_c)
+    # a_aligned = np.dot(a_c, rotation)
+    # t = b_mean - np.mean(a_aligned, axis=0)
+    # a_aligned += t
+    t = b_mean - np.dot(a_mean, rotation)
+    a_aligned = np.dot(a, rotation) + t
+
+    return a_aligned, rotation, t
+
+
+def _get_H3_from_tmb(topology):
+    names = ['H13', 'H23', 'H33']
+    atoms = {}
+    for chain in topology.chains():
+        for res in chain.residues():
+            for atom in res.atoms():
+                if atom.name in names:
+                    atoms[atom.name] = atom
+    return [atoms[name] for name in names]
+
+
+def _dummy_tmb(sg_coords, chain_id):
     tmb = PDBFile(open(TMB_PATH, 'r'))
     pos = tmb.getPositions(asNumpy=True)
     pos = np.array(pos)
-    pos = pos - np.mean(pos, axis=0) + center
+    # pos = pos - np.mean(pos, axis=0) + center
+
+    # align H13, H23, H33 to SG1, SG2, SG3
+    h3_coords = []
+    for atom in _get_H3_from_tmb(tmb.topology):
+        coord = tmb.positions[atom.index]
+        h3_coords.append(np.array([coord.x, coord.y, coord.z]))
+    
+    _, rotation, t = kabsch(h3_coords, sg_coords)
+    pos = np.dot(pos, rotation) + t
+
     tmb.positions = openmm.unit.quantity.Quantity([Vec3(x[0], x[1], x[2]) for x in pos], unit=openmm.unit.nanometer)
 
     modeller = Modeller(tmb.topology, tmb.positions)
     for chain in modeller.topology.chains(): chain.id = chain_id
 
-    atoms_to_remove = []
-    for chain in modeller.topology.chains():
-        for res in chain.residues():
-            for atom in res.atoms():
-                if atom.name in ['H13', 'H23', 'H33']:
-                    atoms_to_remove.append(atom)
+    atoms_to_remove = _get_H3_from_tmb(modeller.topology)
     modeller.delete(atoms_to_remove)
 
     return modeller.topology, modeller.positions
@@ -92,8 +177,9 @@ class ForceFieldMinimizerBicycle(ForceFieldMinimizer):
 
         # add 1,3,5-trimethylbenezene with CH2
         for resids in cyclic_opts:
-            center = np.mean([resid2sgpos[resid] for resid in resids], axis=0)
-            topo, position = _dummy_tmb(center, resids[0][0])
+            # center = np.mean([resid2sgpos[resid] for resid in resids], axis=0)
+            # topo, position = _dummy_tmb(center, resids[0][0])
+            topo, position = _dummy_tmb(np.array([resid2sgpos[resid] for resid in resids]), resids[0][0])
             modeller.add(topo, position)
 
         fixer.topology = modeller.topology
@@ -141,11 +227,11 @@ class ForceFieldMinimizerBicycle(ForceFieldMinimizer):
         connects = _reorganize_connects(exist_connects, connects)
         
         pdb_fixed = self._add_connects(pdb_fixed, connects)
-        print(pdb_fixed)
+        # print(pdb_fixed)
         return pdb_fixed, connects
 
 
 if __name__ == '__main__':
     import sys
     force_field = ForceFieldMinimizerBicycle()
-    force_field(sys.argv[1], sys.argv[2], cyclic_chains=['B'], cyclic_opts=[(('B', 6), ('B', 12), ('B', 15))]) # starts from 0, the i-th residue
+    force_field(sys.argv[1], sys.argv[2], cyclic_chains=['B'], cyclic_opts=[(('B', 0), ('B', 7), ('B', 12))]) # starts from 0, the i-th residue
