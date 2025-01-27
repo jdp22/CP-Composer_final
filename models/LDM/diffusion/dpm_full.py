@@ -655,7 +655,7 @@ class PromptDPM(FullDPM):
         return grouped_tensor,attn_mask
     
     @torch.no_grad()
-    def sample(self, H, X, prompt,position_embedding, mask_generate, lengths, atom_embeddings, atom_mask,key_mask,L=None,atom_gt=None,X_true=None, sample_structure=True, sample_sequence=True, pbar=False, energy_func=None, energy_lambda=0.01
+    def sample(self, H, X, prompt,position_embedding, mask_generate, lengths, atom_embeddings, atom_mask,key_mask,aa_emb_gt,L=None,atom_gt=None,X_true=None, sample_structure=True, sample_sequence=True, pbar=False, energy_func=None, energy_lambda=0.01
     ):
         """
         Args:
@@ -666,7 +666,7 @@ class PromptDPM(FullDPM):
         """
         # if L is not None: 
         #     L = L / self.std
-        self.w = 10
+        self.w = 2
         batch_ids = self._get_batch_ids(mask_generate, lengths)
         batch_size = batch_ids.max() + 1
         X, centers = self._normalize_position(X, batch_ids, mask_generate, atom_mask, L)
@@ -747,7 +747,7 @@ class PromptDPM(FullDPM):
             one_hot_vector = one_hot_vector.unsqueeze(0).repeat(len(sampled_indices),1)
             atom_full[sampled_indices] = one_hot_vector
             
-            atom_full,sampled_edges,guidance_edge_attr = self.condition3(atom_gt,batch_ids,mask_generate,X_true,atom_mask)
+            atom_full,sampled_edges,guidance_edge_attr = self.condition33(atom_gt,batch_ids,mask_generate,X_true,atom_mask)
             prompted_eps_H_pred, prompted_eps_X_pred= self.eps_net(H_t, X_t,prompt,position_embedding, ctx_edges, inter_edges, atom_embeddings, atom_mask.float(), mask_generate, beta,atom_gt=atom_full,ctx_edge_attr=ctx_edge_attr, inter_edge_attr=inter_edge_attr,guidance_edges=sampled_edges,guidance_edge_attr = guidance_edge_attr,k_mask=key_mask,batch_ids=batch_ids,text_guidance=True)
 
             atom_full = torch.zeros_like(atom_full)
@@ -759,19 +759,28 @@ class PromptDPM(FullDPM):
             if energy_func is not None:
                 with torch.enable_grad():
                     cur_X_state = X_t.clone().double()
+                    cur_H_state = H_t.clone().double()
+
                     cur_X_state.requires_grad = True
+                    cur_H_state.requires_grad = True
                     energy = energy_func(
                         X=self._unnormalize_position(cur_X_state, centers.double(), batch_ids, L.double()),
-                        mask_generate=mask_generate, batch_ids=batch_ids)
+                        H = cur_H_state,atom_gt = aa_emb_gt,mask_generate=mask_generate, batch_ids=batch_ids)
+                    print(t,energy)
                     energy_eps_X = grad([energy], [cur_X_state], create_graph=False, retain_graph=False)[0].float()
+                    energy_eps_H = grad([energy], [cur_H_state], create_graph=False, retain_graph=False)[0].float()
                 # print(energy_lambda, energy / mask_generate.sum())
                 energy_eps_X[~mask_generate] = 0
                 energy_eps_X = -energy_eps_X
+
+                energy_eps_H[~mask_generate] = 0
+                energy_eps_H = -energy_eps_H
                 # print(t, 'energy', energy_eps_X[mask_generate][0, 0] * 1000)
             else:
                 energy_eps_X = None
+                energy_eps_H = None
             
-            H_next = self.trans_h.denoise(H_t, eps_H, mask_generate, batch_ids, t_tensor)
+            H_next = self.trans_h.denoise(H_t, eps_H, mask_generate, batch_ids, t_tensor,guidance=energy_eps_H,guidance_weight=energy_lambda)
             X_next = self.trans_x.denoise(X_t, eps_X, mask_generate, batch_ids, t_tensor, guidance=energy_eps_X, guidance_weight=energy_lambda)
             # print(t, 'output', X_next[mask_generate][0, 0] * 1000)
             # if t == 90:
@@ -867,6 +876,57 @@ class PromptDPM(FullDPM):
 
         return atom_full,sampled_edges,guidance_edge_attr
     
+    def condition23(self,atom_gt,batch_ids,mask_generate,X_true,atom_mask):
+        '''
+        The distance of head and tail is less than 6 A and two positions Cys with distance between 3.5-5 A
+        '''
+
+        unique_vals = torch.unique(batch_ids)
+        sampled_indices = []
+        positions1 = []
+        positions2 = []
+        for val in unique_vals:
+            valid_indices = (batch_ids == val) & mask_generate
+            indices = valid_indices.nonzero(as_tuple=True)[0]
+            
+            if len(indices)<4:
+                continue
+            head_indices = indices[(max(indices)-indices>=3)]
+            head_indice = random.choice(head_indices)
+            sampled = [head_indice,head_indice+3]
+            positions1.append(head_indice)
+            positions2.append(head_indice+3)
+            sampled_indices+=sampled
+        
+        for i in range(1, len(mask_generate)):
+            if mask_generate[i] != mask_generate[i-1]:
+                if mask_generate[i]:
+                    positions1.append(i)
+                else:
+                    positions2.append(i-1)
+
+        positions2.append(len(mask_generate)-1)
+        
+        sampled_indices = torch.tensor(sampled_indices).to(atom_gt.device)
+        atom_full = torch.zeros((mask_generate.shape[0],atom_gt.shape[1])).to(atom_gt.device)
+        one_hot_vector = torch.zeros(20).to(atom_gt.device)
+        one_hot_vector[4] = 1
+        one_hot_vector = one_hot_vector.unsqueeze(0).repeat(len(sampled_indices),1)
+        atom_full[sampled_indices] = one_hot_vector
+
+        positions1 = torch.stack(positions1)
+        positions2 = torch.stack(positions2)
+        edges = torch.stack([positions1, positions2], dim=0)
+        reversed_edges = edges.flip(0)
+
+        sampled_edges = torch.cat([edges,reversed_edges], dim=1)
+        guidance_edge_attr = self._get_edge_dist(X_true, sampled_edges, atom_mask)       
+        guidance_edge_attr.fill_(3.8)      
+        guidance_edge_attr = self.guidance_dist_rbf(guidance_edge_attr).view(sampled_edges.shape[1], -1)
+
+        return atom_full,sampled_edges,guidance_edge_attr
+
+    
     def condition3(self,atom_gt,batch_ids,mask_generate,X_true,atom_mask):
         '''
         two positions Cys with distance between 3.5-5 A
@@ -886,6 +946,53 @@ class PromptDPM(FullDPM):
             sampled = [head_indice,head_indice+3]
             positions1.append(head_indice)
             positions2.append(head_indice+3)
+            sampled_indices+=sampled
+        sampled_indices = torch.tensor(sampled_indices).to(atom_gt.device)
+        atom_full = torch.zeros((mask_generate.shape[0],atom_gt.shape[1])).to(atom_gt.device)
+        one_hot_vector = torch.zeros(20).to(atom_gt.device)
+        one_hot_vector[4] = 1
+        one_hot_vector = one_hot_vector.unsqueeze(0).repeat(len(sampled_indices),1)
+        atom_full[sampled_indices] = one_hot_vector
+
+        positions1 = torch.stack(positions1)
+        positions2 = torch.stack(positions2)
+        edges = torch.stack([positions1, positions2], dim=0)
+        reversed_edges = edges.flip(0)
+
+        sampled_edges = torch.cat([edges,reversed_edges], dim=1)
+        guidance_edge_attr = self._get_edge_dist(X_true, sampled_edges, atom_mask)       
+        guidance_edge_attr.fill_(3.8)      
+        guidance_edge_attr = self.guidance_dist_rbf(guidance_edge_attr).view(sampled_edges.shape[1], -1)
+
+        return atom_full,sampled_edges,guidance_edge_attr
+    
+    def condition33(self,atom_gt,batch_ids,mask_generate,X_true,atom_mask):
+        '''
+        two positions Cys with distance between 3.5-5 A
+        '''
+        unique_vals = torch.unique(batch_ids)
+        sampled_indices = []
+        positions1 = []
+        positions2 = []
+        for val in unique_vals:
+            valid_indices = (batch_ids == val) & mask_generate
+            indices = valid_indices.nonzero(as_tuple=True)[0]
+            
+            if len(indices)<8:
+                continue
+            head_indices = indices[(max(indices)-indices>=7)]
+            head_indice = random.choice(head_indices)
+            sampled = [head_indice,head_indice+3]
+            positions1.append(head_indice)
+            positions2.append(head_indice+3)
+            
+            head_indices = indices[(indices>head_indice+3)&(max(indices)-indices>=3)]
+            head_indice = random.choice(head_indices)
+            sampled += [head_indice,head_indice+3]
+            positions1.append(head_indice)
+            positions2.append(head_indice+3)
+
+            
             sampled_indices+=sampled
         sampled_indices = torch.tensor(sampled_indices).to(atom_gt.device)
         atom_full = torch.zeros((mask_generate.shape[0],atom_gt.shape[1])).to(atom_gt.device)

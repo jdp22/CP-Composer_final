@@ -15,5 +15,5 @@ n_samples: 5
 guidance_strength: 10
 
 # sample_opt:
-#   energy_func: default
-#   energy_lambda: 0.8
+#   energy_func: condition4
+#   energy_lambda: 50

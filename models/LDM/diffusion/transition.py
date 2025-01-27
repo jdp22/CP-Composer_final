@@ -94,7 +94,7 @@ class ContinuousTransition(nn.Module):
         )
 
         if guidance is not None:
-            eps_p = eps_p - torch.sqrt(1 - alpha_bar).view(*expand_shape) * guidance
+            eps_p = eps_p - torch.sqrt(1 - alpha_bar).view(*expand_shape) * guidance*guidance_weight
 
         # if guidance is not None:
         #     p_next = c0 * (p_t - c1 * eps_p) + sigma * z + sigma * sigma * guidance_weight * guidance

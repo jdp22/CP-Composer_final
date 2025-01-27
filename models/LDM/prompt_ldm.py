@@ -9,6 +9,7 @@ from data.format import VOCAB
 
 from .diffusion.dpm_full import FullDPM,PromptDPM
 from .energies.dist import dist_energy
+from .energies.dist import condition1_guidance,condition2_guidance,condition3_guidance,condition4_guidance
 from ..autoencoder.model import AutoEncoder
 from .ldm import LDMPepDesign
 
@@ -54,6 +55,42 @@ class Prompt_LDMPepDesign(LDMPepDesign):
             dist_rbf=dist_rbf,
             dist_rbf_cutoff=dist_rbf_cutoff,
             **diffusion_opt
+        )
+
+    def condition1(self, X,H,atom_gt, mask_generate, batch_ids, tolerance=3, **kwargs):
+        assert self.consec_dist_mean is not None and self.consec_dist_std is not None, \
+               'Please run set_consec_dist(self, mean, std) to setup guidance parameters'
+        return condition1_guidance(
+            X, H,atom_gt,mask_generate, batch_ids,
+            self.consec_dist_mean, self.consec_dist_std,
+            tolerance=tolerance, **kwargs
+        )
+    
+    def condition2(self, X, mask_generate, batch_ids, tolerance=3, **kwargs):
+        assert self.consec_dist_mean is not None and self.consec_dist_std is not None, \
+               'Please run set_consec_dist(self, mean, std) to setup guidance parameters'
+        return condition2_guidance(
+            X, mask_generate, batch_ids,
+            self.consec_dist_mean, self.consec_dist_std,
+            tolerance=tolerance, **kwargs
+        )
+    
+    def condition3(self, X,H,atom_gt, mask_generate, batch_ids, tolerance=3, **kwargs):
+        assert self.consec_dist_mean is not None and self.consec_dist_std is not None, \
+               'Please run set_consec_dist(self, mean, std) to setup guidance parameters'
+        return condition3_guidance(
+            X, H,atom_gt,mask_generate, batch_ids,
+            self.consec_dist_mean, self.consec_dist_std,
+            tolerance=tolerance, **kwargs
+        )
+    
+    def condition4(self, X,H,atom_gt, mask_generate, batch_ids, tolerance=3, **kwargs):
+        assert self.consec_dist_mean is not None and self.consec_dist_std is not None, \
+               'Please run set_consec_dist(self, mean, std) to setup guidance parameters'
+        return condition4_guidance(
+            X, H,atom_gt,mask_generate, batch_ids,
+            self.consec_dist_mean, self.consec_dist_std,
+            tolerance=tolerance, **kwargs
         )
     
     @oom_decorator
@@ -169,11 +206,19 @@ class Prompt_LDMPepDesign(LDMPepDesign):
                 pass
             elif sample_opt['energy_func'] == 'default':
                 sample_opt['energy_func'] = self.latent_geometry_guidance
+            elif sample_opt['energy_func'] == 'condition1':
+                sample_opt['energy_func'] = self.condition1
+            elif sample_opt['energy_func'] == 'condition2':
+                sample_opt['energy_func'] = self.condition2
+            elif sample_opt['energy_func'] == 'condition3':
+                sample_opt['energy_func'] = self.condition3
+            elif sample_opt['energy_func'] == 'condition4':
+                sample_opt['energy_func'] = self.condition4
             # otherwise this should be a function
         autoencoder_n_iter = sample_opt.pop('autoencoder_n_iter', 1)
 
         traj = self.diffusion.sample(
-            H_0, X,prompt, position_embedding, mask, lengths, atom_embeddings, atom_mask, key_mask,L,atom_gt,X_init, **sample_opt)
+            H_0, X,prompt, position_embedding, mask, lengths, atom_embeddings, atom_mask, key_mask,self.atom_type_embedding,L,atom_gt,X_init, **sample_opt)
         X_0, H_0 = traj[0]
         X_0, H_0 = X_0[mask][:, :self.autoencoder.latent_n_channel], H_0[mask]
 

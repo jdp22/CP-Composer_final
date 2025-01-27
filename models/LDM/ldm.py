@@ -144,6 +144,7 @@ class LDMPepDesign(nn.Module):
             self.consec_dist_mean, self.consec_dist_std,
             tolerance=tolerance, **kwargs
         )
+    
 
     @torch.no_grad()
     def sample(
