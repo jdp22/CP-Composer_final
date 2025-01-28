@@ -18,7 +18,6 @@ custom_xml = os.path.abspath(os.path.join(
     os.path.dirname(__file__),
     'custom', 'residue.xml'
 ))
-print(custom_xml)
 
 class ForceFieldMinimizer(object):
 
