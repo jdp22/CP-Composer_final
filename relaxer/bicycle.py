@@ -251,7 +251,7 @@ class ForceFieldMinimizerBicycle(ForceFieldMinimizer):
         connects = _reorganize_connects(exist_connects, connects, sg_atom_ids)
         
         pdb_fixed = self._add_connects(pdb_fixed, connects)
-        print(pdb_fixed)
+        # print(pdb_fixed)
         return pdb_fixed, connects
 
 
