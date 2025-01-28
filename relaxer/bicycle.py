@@ -152,7 +152,6 @@ def _reorganize_connects(existing, new, sg_atom_ids):
     for line in new:
         line = _split_connect(line)
         src, dsts = line[0], line[1:]
-        print(line)
         if src not in connect_dict: connect_dict[src] = []
         connect_dict[src].extend(dsts)
     connects = []
