@@ -101,7 +101,7 @@ def _get_H3_from_tmb(topology):
     return [atoms[name] for name in names]
 
 
-def _dummy_tmb(sg_coords, chain_id):
+def _dummy_tmb(sg_coords, chain_id, resid):
     tmb = PDBFile(open(TMB_PATH, 'r'))
     pos = tmb.getPositions(asNumpy=True)
     pos = np.array(pos)
@@ -119,7 +119,10 @@ def _dummy_tmb(sg_coords, chain_id):
     tmb.positions = openmm.unit.quantity.Quantity([Vec3(x[0], x[1], x[2]) for x in pos], unit=openmm.unit.nanometer)
 
     modeller = Modeller(tmb.topology, tmb.positions)
-    for chain in modeller.topology.chains(): chain.id = chain_id
+    for chain in modeller.topology.chains():
+        chain.id = chain_id
+        for res in chain.residues():
+            res.id = str(resid)
 
     atoms_to_remove = _get_H3_from_tmb(modeller.topology)
     modeller.delete(atoms_to_remove)
@@ -127,16 +130,35 @@ def _dummy_tmb(sg_coords, chain_id):
     return modeller.topology, modeller.positions
 
 
-def _reorganize_connects(existing, new):
+def _split_connect(line):
+    line = line.strip()
+    line = line[len('CONECT'):]
+    ids = []
+    assert len(line) % 5 == 0
+    for i in range(0, len(line), 5):
+        ids.append(line[i:i+5].strip())
+    return ids
+
+
+def _reorganize_connects(existing, new, sg_atom_ids):
     connect_dict = {}
-    for line in existing + new:
-        line = re.split(r'\s+', line.strip())
-        src, dsts = line[1], line[2:]
+    for line in existing:
+        # line = re.split(r'\s+', line.strip())
+        line = _split_connect(line)
+        src, dsts = line[0], line[1:]
+        if src in sg_atom_ids: continue
+        if src not in connect_dict: connect_dict[src] = []
+        connect_dict[src].extend([i for i in dsts if i not in sg_atom_ids])
+    for line in new:
+        line = _split_connect(line)
+        src, dsts = line[0], line[1:]
+        print(line)
         if src not in connect_dict: connect_dict[src] = []
         connect_dict[src].extend(dsts)
     connects = []
     for key in sorted([int(i) for i in connect_dict]):
         key = str(key)
+        if len(connect_dict[key]) == 0: continue
         s = 'CONECT' + key.rjust(5)
         for d in sorted([int(j) for j in set(connect_dict[key])]):
             s += str(d).rjust(5)
@@ -157,13 +179,15 @@ class ForceFieldMinimizerBicycle(ForceFieldMinimizer):
             all_cyc[resid3] = 1
 
         # remove hydrogen on the sulfer and record SG positions
-        resid2sgpos = {}
+        resid2sgpos, chain_last_resid = {}, {}
         modeller = Modeller(fixer.topology, fixer.positions)
         for chain in modeller.topology.chains():
             if chain.id not in cyclic_chains: continue
             atoms_to_remove = []
+            chain_last_resid[chain.id] = 0
             for i, res in enumerate(chain.residues()):
                 resid = (chain.id, i)
+                chain_last_resid[chain.id] = max(chain_last_resid[chain.id], int(res.id))
                 if resid not in all_cyc:
                     continue
                 for atom in res.atoms():
@@ -177,7 +201,7 @@ class ForceFieldMinimizerBicycle(ForceFieldMinimizer):
 
         # add 1,3,5-trimethylbenezene with CH2
         for resids in cyclic_opts:
-            topo, position = _dummy_tmb(np.array([resid2sgpos[resid] for resid in resids]), resids[0][0])
+            topo, position = _dummy_tmb(np.array([resid2sgpos[resid] for resid in resids]), resids[0][0], chain_last_resid[chain.id] + 1)
             modeller.add(topo, position)
 
         fixer.topology = modeller.topology
@@ -205,15 +229,16 @@ class ForceFieldMinimizerBicycle(ForceFieldMinimizer):
                     assert len(carbons) == 3
                     tmb_carbons.append(carbons)
         
-        connects = []
+        connects, sg_atom_ids = [], []
 
         for i, (res1, res2, res3) in enumerate(cyclic_opts):
             sg1, sg2, sg3 = resid2sg[res1], resid2sg[res2], resid2sg[res3]
             c1, c2, c3 = tmb_carbons[i]
             for sg, c in zip([sg1, sg2, sg3], [c1, c2, c3]):
                 # clear wrong S-S bonds automatically identified by pdbfixer
-                pattern = rf"^CONECT {sg.id}\b.*(?:\n|$)"
-                pdb_fixed = re.sub(pattern, "", pdb_fixed, flags=re.MULTILINE)
+                # pattern = rf"^CONECT {sg.id}\b.*(?:\n|$)"
+                # pdb_fixed = re.sub(pattern, "", pdb_fixed, flags=re.MULTILINE)
+                sg_atom_ids.append(str(sg.id))
                 connects.append('CONECT' + str(sg.id).rjust(5) + str(c.id).rjust(5))
                 connects.append('CONECT' + str(c.id).rjust(5) + str(sg.id).rjust(5))
 
@@ -223,10 +248,10 @@ class ForceFieldMinimizerBicycle(ForceFieldMinimizer):
         exist_connects = re.findall(pattern, pdb_fixed, flags=re.MULTILINE)
         pdb_fixed = re.sub(pattern, "", pdb_fixed, flags=re.MULTILINE)
 
-        connects = _reorganize_connects(exist_connects, connects)
+        connects = _reorganize_connects(exist_connects, connects, sg_atom_ids)
         
         pdb_fixed = self._add_connects(pdb_fixed, connects)
-        # print(pdb_fixed)
+        print(pdb_fixed)
         return pdb_fixed, connects
 
 
