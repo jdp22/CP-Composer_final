@@ -177,8 +177,6 @@ class ForceFieldMinimizerBicycle(ForceFieldMinimizer):
 
         # add 1,3,5-trimethylbenezene with CH2
         for resids in cyclic_opts:
-            # center = np.mean([resid2sgpos[resid] for resid in resids], axis=0)
-            # topo, position = _dummy_tmb(center, resids[0][0])
             topo, position = _dummy_tmb(np.array([resid2sgpos[resid] for resid in resids]), resids[0][0])
             modeller.add(topo, position)
 
@@ -221,7 +219,7 @@ class ForceFieldMinimizerBicycle(ForceFieldMinimizer):
 
         # reorganize CONECT record
         pattern = r'^CONECT\b.*(?:\n|$)'
-        breakpoint()
+        # breakpoint()
         exist_connects = re.findall(pattern, pdb_fixed, flags=re.MULTILINE)
         pdb_fixed = re.sub(pattern, "", pdb_fixed, flags=re.MULTILINE)
 
@@ -235,4 +233,4 @@ class ForceFieldMinimizerBicycle(ForceFieldMinimizer):
 if __name__ == '__main__':
     import sys
     force_field = ForceFieldMinimizerBicycle()
-    force_field(sys.argv[1], sys.argv[2], sys.argv[3], cyclic_opts=[((sys.argv[3], sys.argv[4]), (sys.argv[3], sys.argv[5]), (sys.argv[3], sys.argv[6]))]) # starts from 0, the i-th residue
+    force_field(sys.argv[1], sys.argv[2], cyclic_chains=[sys.argv[3]], cyclic_opts=[((sys.argv[3], int(sys.argv[4])), (sys.argv[3], int(sys.argv[5])), (sys.argv[3], int(sys.argv[6])))]) # starts from 0, the i-th residue
