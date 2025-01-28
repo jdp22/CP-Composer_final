@@ -221,6 +221,7 @@ class ForceFieldMinimizerBicycle(ForceFieldMinimizer):
 
         # reorganize CONECT record
         pattern = r'^CONECT\b.*(?:\n|$)'
+        breakpoint()
         exist_connects = re.findall(pattern, pdb_fixed, flags=re.MULTILINE)
         pdb_fixed = re.sub(pattern, "", pdb_fixed, flags=re.MULTILINE)
 
@@ -234,4 +235,4 @@ class ForceFieldMinimizerBicycle(ForceFieldMinimizer):
 if __name__ == '__main__':
     import sys
     force_field = ForceFieldMinimizerBicycle()
-    force_field(sys.argv[1], sys.argv[2], cyclic_chains=['B'], cyclic_opts=[(('B', 0), ('B', 7), ('B', 12))]) # starts from 0, the i-th residue
+    force_field(sys.argv[1], sys.argv[2], sys.argv[3], cyclic_opts=[((sys.argv[3], sys.argv[4]), (sys.argv[3], sys.argv[5]), (sys.argv[3], sys.argv[6]))]) # starts from 0, the i-th residue

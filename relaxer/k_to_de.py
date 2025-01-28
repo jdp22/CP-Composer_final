@@ -85,4 +85,4 @@ class ForceFieldMinimizerKtoDE(ForceFieldMinimizer):
 if __name__ == '__main__':
     import sys
     force_field = ForceFieldMinimizerKtoDE()
-    force_field(sys.argv[1], sys.argv[2], cyclic_chains=['B'], cyclic_opts=[(('B', 1), ('B', 5))]) # starts from 0, the i-th residue
+    force_field(sys.argv[1], sys.argv[2], cyclic_chains=['C'], cyclic_opts=[(('C', 10), ('C', 13))]) # starts from 0, the i-th residue

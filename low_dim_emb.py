@@ -133,12 +133,15 @@ if __name__ == '__main__':
     plt.scatter(data_2d[labels == 2, 0], data_2d[labels == 2, 1], c='purple', label='Condition3 Samples', alpha=0.7)
     plt.scatter(data_2d[labels == 3, 0], data_2d[labels == 3, 1], c='pink', label='Condition4 Samples', alpha=0.7)
     plt.scatter(data_2d[labels == 4, 0], data_2d[labels == 4, 1], c='red', label='GT Samples', alpha=0.7)
-    plt.title("T-SNE Visualization")
+    # plt.title("T-SNE Visualization")
     # plt.xlabel("TSNE Component 1")
     # plt.ylabel("TSNE Component 2")
     plt.legend()
     # plt.grid(True)
     plt.show()
+    plt.xticks([])  # 隐藏x轴刻度
+    plt.yticks([])  # 隐藏y轴刻度
     plt.savefig("./TSNE_visualization.pdf", dpi=300, bbox_inches='tight') 
+    plt.savefig("./TSNE_visualization.png", dpi=300, bbox_inches='tight') 
 
 
