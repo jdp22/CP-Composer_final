@@ -44,6 +44,8 @@
       <ExternalBond atomName="N"/>
       <ExternalBond atomName="C"/>
       <ExternalBond atomName="NZ"/>
+      <AllowPatch name="NTER"/>
+      <AllowPatch name="CTER"/>
     </Residue>
     <Residue name="GLUA">
       <!-- GLU with CD forming amide bonds to other residues -->
@@ -77,6 +79,8 @@
       <ExternalBond atomName="N"/>
       <ExternalBond atomName="C"/>
       <ExternalBond atomName="CD"/>
+      <AllowPatch name="NTER"/>
+      <AllowPatch name="CTER"/>
     </Residue>
     <Residue name="CYSC">
       <Atom charge="-0.47" name="N" type="NH1"/>
@@ -106,27 +110,27 @@
     </Residue>
     <Residue name="TMB">
       <!-- 1,3,5-trimethylbenezene with the methyl connecting to other atoms -->
-      <Atom charge="0.0" name="CG" type="CG2R61"/>
-      <Atom charge="-0.115" name="CD1" type="CG2R61"/>
-      <Atom charge="0.115" name="HD1" type="HGR61"/>
-      <Atom charge="-0.115" name="CD2" type="CG2R61"/>
-      <Atom charge="0.115" name="HD2" type="HGR61"/>
-      <Atom charge="0.0" name="CE1" type="CG2R61"/>
-      <Atom charge="0.0" name="CE2" type="CG2R61"/>
-      <Atom charge="-0.115" name="CZ" type="CG2R61"/>
-      <Atom charge="0.115" name="HZ" type="HGR61"/>
+      <Atom charge="0.0" name="CG" type="CA"/>
+      <Atom charge="-0.115" name="CD1" type="CA"/>
+      <Atom charge="0.115" name="HD1" type="HP"/>
+      <Atom charge="-0.115" name="CD2" type="CA"/>
+      <Atom charge="0.115" name="HD2" type="HP"/>
+      <Atom charge="0.0" name="CE1" type="CA"/>
+      <Atom charge="0.0" name="CE2" type="CA"/>
+      <Atom charge="-0.115" name="CZ" type="CA"/>
+      <Atom charge="0.115" name="HZ" type="HP"/>
       <!-- methyl 1 -->
-      <Atom charge="-0.18" name="CM1" type="CG331"/>
-      <Atom charge="0.09" name="H11" type="HGA3"/>
-      <Atom charge="0.09" name="H12" type="HGA3"/>
+      <Atom charge="-0.18" name="CM1" type="CT2"/>
+      <Atom charge="0.09" name="H11" type="HA2"/>
+      <Atom charge="0.09" name="H12" type="HA2"/>
       <!-- methyl 2 -->
-      <Atom charge="-0.18" name="CM2" type="CG331"/>
-      <Atom charge="0.09" name="H21" type="HGA3"/>
-      <Atom charge="0.09" name="H22" type="HGA3"/>
+      <Atom charge="-0.18" name="CM2" type="CT2"/>
+      <Atom charge="0.09" name="H21" type="HA2"/>
+      <Atom charge="0.09" name="H22" type="HA2"/>
       <!-- methyl 3 -->
-      <Atom charge="-0.18" name="CM3" type="CG331"/>
-      <Atom charge="0.09" name="H31" type="HGA3"/>
-      <Atom charge="0.09" name="H32" type="HGA3"/>
+      <Atom charge="-0.18" name="CM3" type="CT2"/>
+      <Atom charge="0.09" name="H31" type="HA2"/>
+      <Atom charge="0.09" name="H32" type="HA2"/>
       <!-- bonds for benezene -->
       <Bond atomName1="CD1" atomName2="CG"/>
       <Bond atomName1="CD2" atomName2="CG"/>
