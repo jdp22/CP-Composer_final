@@ -17,14 +17,14 @@ model = AutoModelForMaskedLM.from_pretrained("facebook/esm2_t33_650M_UR50D", cac
 
 # Function to extract amino acid embeddings and optionally compute adjacency matrix
 def embed_peptide(pdb_file, peptide_idx, peptide_sequence=None,include_feature2=False):
-    parser = Bio.PDB.PDBParser(QUIET=True)
-    structure = parser.get_structure("peptide", pdb_file)
-    chain = structure[0][peptide_idx]
-
-    # Extract sequence from PDB
-    residues = [res for res in chain.get_residues() if Bio.PDB.is_aa(res, standard=True)]
-    sequence = "".join([res.get_resname() for res in residues])
     if peptide_sequence is None:
+        parser = Bio.PDB.PDBParser(QUIET=True)
+        structure = parser.get_structure("peptide", pdb_file)
+        chain = structure[0][peptide_idx]
+
+        # Extract sequence from PDB
+        residues = [res for res in chain.get_residues() if Bio.PDB.is_aa(res, standard=True)]
+        sequence = "".join([res.get_resname() for res in residues])
         peptide_sequence = sequence
     # Tokenize sequence
     inputs = tokenizer(peptide_sequence, return_tensors="pt", max_length=22,padding='max_length', truncation=True)
@@ -92,10 +92,10 @@ def gt_embed():
 if __name__ == '__main__':
     plt.figure(figsize=(8, 6))
     
-    generation1_array = generation_embed('/home/jiangdapeng/PepGLAD/results/condition1_w5_20samples/good_results.jsonl')
-    generation2_array = generation_embed('/home/jiangdapeng/PepGLAD/results/condition2_w1_50samples/good_results.jsonl')
-    generation3_array = generation_embed('/home/jiangdapeng/PepGLAD/results/condition3_w1_50samples/good_results.jsonl')
-    generation4_array = generation_embed('/home/jiangdapeng/PepGLAD/results/condition4_w5_50samples/good_results.jsonl')
+    generation1_array = generation_embed('/home/jiangdapeng/PepGLAD/cluster_cache/condition1.jsonl')
+    generation2_array = generation_embed('/home/jiangdapeng/PepGLAD/cluster_cache/condition2.jsonl')
+    generation3_array = generation_embed('/home/jiangdapeng/PepGLAD/cluster_cache/condition3.jsonl')
+    generation4_array = generation_embed('/home/jiangdapeng/PepGLAD/cluster_cache/condition4.jsonl')
     gt_array = gt_embed()
     
 
@@ -128,10 +128,10 @@ if __name__ == '__main__':
 
     # 可视化
     plt.figure(figsize=(8, 6))
-    plt.scatter(data_2d[labels == 0, 0], data_2d[labels == 0, 1], c='blue', label='Condition1 Samples', alpha=0.7)
-    plt.scatter(data_2d[labels == 1, 0], data_2d[labels == 1, 1], c='green', label='Condition2 Samples', alpha=0.7)
-    plt.scatter(data_2d[labels == 2, 0], data_2d[labels == 2, 1], c='purple', label='Condition3 Samples', alpha=0.7)
-    plt.scatter(data_2d[labels == 3, 0], data_2d[labels == 3, 1], c='pink', label='Condition4 Samples', alpha=0.7)
+    plt.scatter(data_2d[labels == 0, 0], data_2d[labels == 0, 1], c='blue', label='Stapled peptide', alpha=0.7)
+    plt.scatter(data_2d[labels == 1, 0], data_2d[labels == 1, 1], c='green', label='Head-to-tail peptide', alpha=0.7)
+    plt.scatter(data_2d[labels == 2, 0], data_2d[labels == 2, 1], c='purple', label='Disulfide peptide', alpha=0.7)
+    plt.scatter(data_2d[labels == 3, 0], data_2d[labels == 3, 1], c='pink', label='Bicycle peptide', alpha=0.7)
     plt.scatter(data_2d[labels == 4, 0], data_2d[labels == 4, 1], c='red', label='GT Samples', alpha=0.7)
     # plt.title("T-SNE Visualization")
     # plt.xlabel("TSNE Component 1")
@@ -141,7 +141,7 @@ if __name__ == '__main__':
     plt.show()
     plt.xticks([])  # 隐藏x轴刻度
     plt.yticks([])  # 隐藏y轴刻度
-    plt.savefig("./TSNE_visualization.pdf", dpi=300, bbox_inches='tight') 
-    plt.savefig("./TSNE_visualization.png", dpi=300, bbox_inches='tight') 
+    plt.savefig("./TSNE_visualization.pdf", dpi=500, bbox_inches='tight') 
+    plt.savefig("./TSNE_visualization.png", dpi=500, bbox_inches='tight') 
 
 

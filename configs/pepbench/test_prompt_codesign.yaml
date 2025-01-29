@@ -8,7 +8,7 @@ dataset:
 
 dataloader:
   num_workers: 4
-  batch_size: 64
+  batch_size: 96
 
 backbone_only: false
 n_samples: 40
