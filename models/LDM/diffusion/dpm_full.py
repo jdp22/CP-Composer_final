@@ -666,7 +666,8 @@ class PromptDPM(FullDPM):
         """
         # if L is not None: 
         #     L = L / self.std
-        self.w = 1
+        breakpoint()
+        self.w = 2
         batch_ids = self._get_batch_ids(mask_generate, lengths)
         batch_size = batch_ids.max() + 1
         X, centers = self._normalize_position(X, batch_ids, mask_generate, atom_mask, L)

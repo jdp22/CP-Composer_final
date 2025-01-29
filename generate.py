@@ -162,7 +162,7 @@ def main(args, opt_args):
     model.eval()
 
     # adjust the strength of text gudiance
-    model.w = config['guidance_strength']
+    model.diffusion.w = config['guidance_strength']
 
     # load data
     _, _, test_set = create_dataset(config['dataset'])

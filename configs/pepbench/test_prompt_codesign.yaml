@@ -12,7 +12,7 @@ dataloader:
 
 backbone_only: false
 n_samples: 40
-guidance_strength: 10
+guidance_strength: 3
 
 # sample_opt:
 #   energy_func: condition4
