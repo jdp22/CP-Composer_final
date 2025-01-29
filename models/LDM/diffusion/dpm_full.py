@@ -666,7 +666,7 @@ class PromptDPM(FullDPM):
         """
         # if L is not None: 
         #     L = L / self.std
-        self.w = 3
+        self.w = 2
         batch_ids = self._get_batch_ids(mask_generate, lengths)
         batch_size = batch_ids.max() + 1
         X, centers = self._normalize_position(X, batch_ids, mask_generate, atom_mask, L)
@@ -747,7 +747,7 @@ class PromptDPM(FullDPM):
             one_hot_vector = one_hot_vector.unsqueeze(0).repeat(len(sampled_indices),1)
             atom_full[sampled_indices] = one_hot_vector
             
-            atom_full,sampled_edges,guidance_edge_attr = self.condition4(atom_gt,batch_ids,mask_generate,X_true,atom_mask)
+            atom_full,sampled_edges,guidance_edge_attr = self.condition1(atom_gt,batch_ids,mask_generate,X_true,atom_mask)
             prompted_eps_H_pred, prompted_eps_X_pred= self.eps_net(H_t, X_t,prompt,position_embedding, ctx_edges, inter_edges, atom_embeddings, atom_mask.float(), mask_generate, beta,atom_gt=atom_full,ctx_edge_attr=ctx_edge_attr, inter_edge_attr=inter_edge_attr,guidance_edges=sampled_edges,guidance_edge_attr = guidance_edge_attr,k_mask=key_mask,batch_ids=batch_ids,text_guidance=True)
 
             atom_full = torch.zeros_like(atom_full)
@@ -1150,6 +1150,58 @@ class PromptDPM(FullDPM):
 
         return atom_full,sampled_edges,guidance_edge_attr
     
+    def condition333(self,atom_gt,batch_ids,mask_generate,X_true,atom_mask):
+        '''
+        two positions Cys with distance between 3.5-5 A *3
+        '''
+        unique_vals = torch.unique(batch_ids)
+        sampled_indices = []
+        positions1 = []
+        positions2 = []
+        for val in unique_vals:
+            valid_indices = (batch_ids == val) & mask_generate
+            indices = valid_indices.nonzero(as_tuple=True)[0]
+            
+            if len(indices)<12:
+                continue
+            head_indices = indices[(max(indices)-indices>=11)]
+            head_indice = random.choice(head_indices)
+            sampled = [head_indice,head_indice+3]
+            positions1.append(head_indice)
+            positions2.append(head_indice+3)
+            
+            head_indices = indices[(indices>head_indice+3)&(max(indices)-indices>=7)]
+            head_indice = random.choice(head_indices)
+            sampled += [head_indice,head_indice+3]
+            positions1.append(head_indice)
+            positions2.append(head_indice+3)
+            sampled_indices+=sampled
+
+            head_indices = indices[(indices>head_indice+3)&(max(indices)-indices>=3)]
+            head_indice = random.choice(head_indices)
+            sampled += [head_indice,head_indice+3]
+            positions1.append(head_indice)
+            positions2.append(head_indice+3)
+            sampled_indices+=sampled
+        sampled_indices = torch.tensor(sampled_indices).to(atom_gt.device)
+        atom_full = torch.zeros((mask_generate.shape[0],atom_gt.shape[1])).to(atom_gt.device)
+        one_hot_vector = torch.zeros(20).to(atom_gt.device)
+        one_hot_vector[4] = 1
+        one_hot_vector = one_hot_vector.unsqueeze(0).repeat(len(sampled_indices),1)
+        atom_full[sampled_indices] = one_hot_vector
+
+        positions1 = torch.stack(positions1)
+        positions2 = torch.stack(positions2)
+        edges = torch.stack([positions1, positions2], dim=0)
+        reversed_edges = edges.flip(0)
+
+        sampled_edges = torch.cat([edges,reversed_edges], dim=1)
+        guidance_edge_attr = self._get_edge_dist(X_true, sampled_edges, atom_mask)       
+        guidance_edge_attr.fill_(3.8)      
+        guidance_edge_attr = self.guidance_dist_rbf(guidance_edge_attr).view(sampled_edges.shape[1], -1)
+
+        return atom_full,sampled_edges,guidance_edge_attr
+    
     def condition4(self,atom_gt,batch_ids,mask_generate,X_true,atom_mask):
         '''
         Contruct Bicycle
@@ -1187,7 +1239,7 @@ class PromptDPM(FullDPM):
 
         sampled_edges = torch.cat([edges,reversed_edges], dim=1)
         guidance_edge_attr = self._get_edge_dist(X_true, sampled_edges, atom_mask)       
-        guidance_edge_attr.fill_(4)      
+        guidance_edge_attr.fill_(8)      
         guidance_edge_attr = self.guidance_dist_rbf(guidance_edge_attr).view(sampled_edges.shape[1], -1)
 
         return atom_full,sampled_edges,guidance_edge_attr

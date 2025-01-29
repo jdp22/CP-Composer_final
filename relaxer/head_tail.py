@@ -61,4 +61,4 @@ class ForceFieldMinimizerHeadTail(ForceFieldMinimizer):
 if __name__ == '__main__':
     import sys
     force_field = ForceFieldMinimizerHeadTail()
-    force_field(sys.argv[1], sys.argv[2], cyclic_chains=['A']) # starts from 0, the i-th residue
+    force_field(sys.argv[1], sys.argv[2], cyclic_chains=['C']) # starts from 0, the i-th residue

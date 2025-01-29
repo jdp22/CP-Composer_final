@@ -71,4 +71,4 @@ class ForceFieldMinimizerCys(ForceFieldMinimizer):
 if __name__ == '__main__':
     import sys
     force_field = ForceFieldMinimizerCys()
-    force_field(sys.argv[1], sys.argv[2], cyclic_chains=['P'], cyclic_opts=[(('P', 2), ('P', 5))]) # starts from 0, the i-th residue
+    force_field(sys.argv[1], sys.argv[2], cyclic_chains=['B'], cyclic_opts=[(('B', 2), ('B', 5)),(('B', 6), ('B', 10)),(('B', 11), ('B', 14))]) # starts from 0, the i-th residue
