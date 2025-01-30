@@ -7,7 +7,8 @@ from scipy.cluster.hierarchy import linkage, fcluster
 from scipy.spatial.distance import squareform
 from scipy.stats.contingency import association
 
-from evaluation.seq_metric import align_sequences
+# from evaluation.seq_metric import align_sequences
+from seq_metric import align_sequences
 
 
 def seq_diversity(seqs: List[str], th: float=0.4) -> float:
@@ -61,8 +62,16 @@ if __name__ == '__main__':
     N, L = 100, 10
     a = np.random.randn(N, L, 3)
     print(struct_diversity(a))
+    # aas = [
+    # ('G', 'GLY'), ('A', 'ALA'), ('V', 'VAL'), ('L', 'LEU'),
+    # ('I', 'ILE'), ('F', 'PHE'), ('W', 'TRP'), ('Y', 'TYR'),
+    # ('D', 'ASP'), ('H', 'HIS'), ('N', 'ASN'), ('E', 'GLU'),
+    # ('K', 'LYS'), ('Q', 'GLN'), ('M', 'MET'), ('R', 'ARG'),
+    # ('S', 'SER'), ('T', 'THR'), ('C', 'CYS'), ('P', 'PRO')
+    # ]
     from utils.const import aas
     aas = [tup[0] for tup in aas]
     seqs = np.random.randint(0, len(aas), (N, L))
     seqs = [''.join([aas[i] for i in idx]) for idx in seqs]
+    breakpoint()
     print(seq_diversity(seqs, 0.4))
