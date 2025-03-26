@@ -666,8 +666,6 @@ class PromptDPM(FullDPM):
         """
         # if L is not None: 
         #     L = L / self.std
-        breakpoint()
-        self.w = 2
         batch_ids = self._get_batch_ids(mask_generate, lengths)
         batch_size = batch_ids.max() + 1
         X, centers = self._normalize_position(X, batch_ids, mask_generate, atom_mask, L)
@@ -748,7 +746,7 @@ class PromptDPM(FullDPM):
             one_hot_vector = one_hot_vector.unsqueeze(0).repeat(len(sampled_indices),1)
             atom_full[sampled_indices] = one_hot_vector
             
-            atom_full,sampled_edges,guidance_edge_attr = self.condition1(atom_gt,batch_ids,mask_generate,X_true,atom_mask)
+            atom_full,sampled_edges,guidance_edge_attr = self.condition4(atom_gt,batch_ids,mask_generate,X_true,atom_mask)
             prompted_eps_H_pred, prompted_eps_X_pred= self.eps_net(H_t, X_t,prompt,position_embedding, ctx_edges, inter_edges, atom_embeddings, atom_mask.float(), mask_generate, beta,atom_gt=atom_full,ctx_edge_attr=ctx_edge_attr, inter_edge_attr=inter_edge_attr,guidance_edges=sampled_edges,guidance_edge_attr = guidance_edge_attr,k_mask=key_mask,batch_ids=batch_ids,text_guidance=True)
 
             atom_full = torch.zeros_like(atom_full)
