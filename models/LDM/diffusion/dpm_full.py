@@ -16,6 +16,7 @@ from ...dyMEAN.modules.am_egnn import AMEGNN,Prompt_AMEGNN
 from ...dyMEAN.modules.radial_basis import RadialBasis
 from torch.nn import MultiheadAttention
 import random
+import numpy as np
 
 
 def low_trianguler_inv(L):
@@ -47,6 +48,7 @@ class EpsilonNet(nn.Module):
         pos_embed_size, seg_embed_size = input_size, input_size
         # enc_input_size = input_size + seg_embed_size + 3 + (pos_embed_size if additional_pos_embed else 0)
         enc_input_size = input_size + 3 + (pos_embed_size if additional_pos_embed else 0) +20
+        
         if attention:
             self.encoder = Prompt_AMEGNN(enc_input_size, hidden_size, hidden_size, n_channel,
             channel_nf=atom_embed_size, radial_nf=hidden_size,
@@ -419,6 +421,8 @@ class PromptDPM(FullDPM):
             for param in self.attention_H.parameters():
                 param.requires_grad = True
 
+        self.CADS_sampler = False
+        self.w = 2
         self.max_length = 170
         self.p_con = 0.5
         self.balance = torch.nn.Parameter(torch.tensor([5.0],requires_grad=True))
@@ -666,8 +670,7 @@ class PromptDPM(FullDPM):
         """
         # if L is not None: 
         #     L = L / self.std
-        breakpoint()
-        self.w = 2
+        print("guidance strength is",self.w)
         batch_ids = self._get_batch_ids(mask_generate, lengths)
         batch_size = batch_ids.max() + 1
         X, centers = self._normalize_position(X, batch_ids, mask_generate, atom_mask, L)
@@ -726,32 +729,56 @@ class PromptDPM(FullDPM):
             atom_full_tmp = torch.zeros((mask_generate.shape[0],atom_gt.shape[1])).to(guidance_edge_attr.device)
             atom_full_tmp[mask_generate] = atom_gt
 
-            # 获取所有唯一的数字
-            unique_vals = torch.unique(batch_ids)
+            # # 获取所有唯一的数字
+            # unique_vals = torch.unique(batch_ids)
 
-            # 用于存储抽样结果
-            sampled_indices = []
+            # # 用于存储抽样结果
+            # sampled_indices = []
 
-            # 对每个数字进行抽样
-            for val in unique_vals:
-                # 找出当前数字的位置
-                valid_indices = (batch_ids == val) & mask_generate
-                indices = valid_indices.nonzero(as_tuple=True)[0]
-                if len(indices)<4:
-                    continue
-                sampled = [indices[0],indices[3]]
-                sampled_indices+=sampled
-            sampled_indices = torch.tensor(sampled_indices).to(guidance_edge_attr.device)
-            atom_full = torch.zeros((mask_generate.shape[0],atom_gt.shape[1])).to(guidance_edge_attr.device)
-            one_hot_vector = torch.zeros(20).to(guidance_edge_attr.device)
-            one_hot_vector[4] = 1
-            one_hot_vector = one_hot_vector.unsqueeze(0).repeat(len(sampled_indices),1)
-            atom_full[sampled_indices] = one_hot_vector
+            # # 对每个数字进行抽样
+            # for val in unique_vals:
+            #     # 找出当前数字的位置
+            #     valid_indices = (batch_ids == val) & mask_generate
+            #     indices = valid_indices.nonzero(as_tuple=True)[0]
+            #     if len(indices)<4:
+            #         continue
+            #     sampled = [indices[0],indices[3]]
+            #     sampled_indices+=sampled
+            # sampled_indices = torch.tensor(sampled_indices).to(guidance_edge_attr.device)
+            # atom_full = torch.zeros((mask_generate.shape[0],atom_gt.shape[1])).to(guidance_edge_attr.device)
+            # one_hot_vector = torch.zeros(20).to(guidance_edge_attr.device)
+            # one_hot_vector[4] = 1
+            # one_hot_vector = one_hot_vector.unsqueeze(0).repeat(len(sampled_indices),1)
+            # atom_full[sampled_indices] = one_hot_vector
             
-            atom_full,sampled_edges,guidance_edge_attr = self.condition1(atom_gt,batch_ids,mask_generate,X_true,atom_mask)
+            atom_indices,atom_full,sampled_edges,guidance_edge_attr = self.condition4(atom_gt,batch_ids,mask_generate,X_true,atom_mask)
+
+            atom_full_None = torch.zeros_like(atom_full)
+            guidance_edge_attr_None = torch.zeros_like(guidance_edge_attr)
+
+
+            if self.CADS_sampler:
+                def compute_gamma(t, tau1, tau2):
+                    """
+                    Computes the gamma value based on time t relative to thresholds tau1 and tau2.
+                    """
+                    if t <= tau1:
+                        return 1.0
+                    if t >= tau2:
+                        return 0.0
+                    gamma = (tau2 - t) / (tau2 - tau1)
+                    return gamma
+                gamma = compute_gamma(t,30,70)
+                device = atom_full.device
+                gamma = torch.tensor(gamma,device=device)
+                atom_full[atom_indices] = torch.sqrt(gamma)*atom_full[atom_indices]+0.25*torch.sqrt(1-gamma)*torch.randn_like(atom_full[atom_indices])
+                guidance_edge_attr = torch.sqrt(gamma)*guidance_edge_attr+0.25*torch.sqrt(1-gamma)*torch.randn_like(guidance_edge_attr)
+                
+                
+                
             prompted_eps_H_pred, prompted_eps_X_pred= self.eps_net(H_t, X_t,prompt,position_embedding, ctx_edges, inter_edges, atom_embeddings, atom_mask.float(), mask_generate, beta,atom_gt=atom_full,ctx_edge_attr=ctx_edge_attr, inter_edge_attr=inter_edge_attr,guidance_edges=sampled_edges,guidance_edge_attr = guidance_edge_attr,k_mask=key_mask,batch_ids=batch_ids,text_guidance=True)
 
-            atom_full = torch.zeros_like(atom_full)
+            
             eps_H, eps_X= self.eps_net(H_t, X_t,prompt,position_embedding, ctx_edges, inter_edges, atom_embeddings, atom_mask.float(), mask_generate, beta,atom_gt=atom_full,ctx_edge_attr=ctx_edge_attr, inter_edge_attr=inter_edge_attr,guidance_edges=None,guidance_edge_attr = None,k_mask=key_mask,batch_ids=batch_ids,text_guidance=False)
 
             eps_H = (1+self.w)*prompted_eps_H_pred-self.w*eps_H
@@ -847,7 +874,7 @@ class PromptDPM(FullDPM):
         guidance_edge_attr = self._get_edge_dist(X_true, sampled_edges, atom_mask)       
         guidance_edge_attr.fill_(4.5)      
         guidance_edge_attr = self.guidance_dist_rbf(guidance_edge_attr).view(sampled_edges.shape[1], -1)
-        return atom_full,sampled_edges,guidance_edge_attr
+        return sampled_indices,atom_full,sampled_edges,guidance_edge_attr
     
     def condition11(self,atom_gt,batch_ids,mask_generate,X_true,atom_mask):
         '''
@@ -991,6 +1018,7 @@ class PromptDPM(FullDPM):
         '''
         atom_full = torch.zeros((mask_generate.shape[0],atom_gt.shape[1])).to(atom_gt.device)
 
+        sampled_indices = []
         head_positions = []
         tail_positions = []
         for i in range(1, len(mask_generate)):
@@ -1000,6 +1028,7 @@ class PromptDPM(FullDPM):
                 else:
                     tail_positions.append(i-1)
         tail_positions.append(len(mask_generate)-1)
+        sampled_indices = head_positions+tail_positions
         head_positions = torch.tensor(head_positions).to(atom_gt.device)
         tail_positions = torch.tensor(tail_positions).to(atom_gt.device)
 
@@ -1011,7 +1040,7 @@ class PromptDPM(FullDPM):
         guidance_edge_attr.fill_(3.8)      
         guidance_edge_attr = self.guidance_dist_rbf(guidance_edge_attr).view(sampled_edges.shape[1], -1)
 
-        return atom_full,sampled_edges,guidance_edge_attr
+        return sampled_indices,atom_full,sampled_edges,guidance_edge_attr
     
     def condition23(self,atom_gt,batch_ids,mask_generate,X_true,atom_mask):
         '''
@@ -1102,7 +1131,7 @@ class PromptDPM(FullDPM):
         guidance_edge_attr.fill_(3.8)      
         guidance_edge_attr = self.guidance_dist_rbf(guidance_edge_attr).view(sampled_edges.shape[1], -1)
 
-        return atom_full,sampled_edges,guidance_edge_attr
+        return sampled_indices,atom_full,sampled_edges,guidance_edge_attr
     
     def condition33(self,atom_gt,batch_ids,mask_generate,X_true,atom_mask):
         '''
@@ -1243,7 +1272,7 @@ class PromptDPM(FullDPM):
         guidance_edge_attr.fill_(8)      
         guidance_edge_attr = self.guidance_dist_rbf(guidance_edge_attr).view(sampled_edges.shape[1], -1)
 
-        return atom_full,sampled_edges,guidance_edge_attr
+        return sampled_indices,atom_full,sampled_edges,guidance_edge_attr
 
         
 
