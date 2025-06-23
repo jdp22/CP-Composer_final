@@ -20,7 +20,7 @@ from transformers import AutoTokenizer, AutoModel
 model_name = "allenai/scibert_scivocab_uncased"
 
 # 指定保存路径
-save_path = "/data/private/jdp/scibert"
+save_path = "/data4/private/jdp/scibert"
 
 # 下载并保存模型
 model = AutoModel.from_pretrained(save_path)

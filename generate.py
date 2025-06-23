@@ -163,6 +163,7 @@ def main(args, opt_args):
 
     # adjust the strength of text gudiance
     model.diffusion.w = config['guidance_strength']
+    model.diffusion.CADS_sampler = config['CADS_sampler']
 
     # load data
     _, _, test_set = create_dataset(config['dataset'])
