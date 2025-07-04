@@ -1,6 +1,6 @@
 # [[ICML2025](https://icml.cc/virtual/2025/poster/45357)] Zero-Shot Cyclic Peptide Design with Composable Geometric Conditions
 
-Under Construction
+Codebase is complete but readme is under construction. Directly contact us if you are in hurry to use our codebase.
 
 ### (Optional) Datasets
 
