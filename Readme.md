@@ -1,6 +1,6 @@
 # [ICML2025] Zero-Shot Cyclic Peptide Design with Composable Geometric Conditions
 Under Construction
-Please email [email][jdp22@mails.tsinghua.edu.cn,jdpaerospace2003@gmail.com]
+Please email [email][jdp22@mails.tsinghua.edu.cn, jdpaerospace2003@gmail.com]
 <!-- ## Quick Links
 
 - [Setup](#setup)
