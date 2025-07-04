@@ -65,7 +65,7 @@ mv ./datasets/pepbdb/processed/pdbs ./dataset/pepbdb  # re-locate
 ```
 
 ## Contact
-Please let know if you have any questions:
+Please let us know if you have any questions:
 * [jdp22@mails.tsinghua.edu.cn](mailto:jdp22@mails.tsinghua.edu.cn)
 * [jdpaerospace2003@gmail.com](mailto:jdpaerospace2003@gmail.com)
 <!-- ## Quick Links
