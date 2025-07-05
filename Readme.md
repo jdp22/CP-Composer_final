@@ -2,6 +2,27 @@
 
 Codebase is complete but readme is under construction. Directly contact us if you are in hurry to use our codebase.
 
+## Quick Start
+We offer you a convenient and direct way to generate peptide using the ckpt we provided in `./checkpoint`.
+
+## Setup
+
+### Environment
+
+The conda environment can be constructed with the configuration `env.yaml`:
+
+```bash
+conda env create -f env.yaml
+```
+
+The codes are tested with cuda version `12.4` and pytorch version `1.13.1`.
+
+Don't forget to activate the environment before running the codes:
+
+```bash
+conda activate Composer
+```
+
 ### (Optional) Datasets
 
 These datasets are only used for benchmarking models. If you just want to use the trained weights for inferencing on your cases, there is no need to download these datasets.
