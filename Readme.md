@@ -39,9 +39,9 @@ After that, run the following command:
 python generate.py --config ./configs/pepbench/test_prompt_codesign.yaml --ckpt ./ckpts/LDM_codesign/version_325/checkpoint/epoch37_step85234.ckpt --gpu ${GPU_index}$ --save_dir ./results/${FOLDER NAME}
 ```
 
-You will get the linear peptide meeting with geometric constraints.
+You will get the linear peptide meeting with geometric constraints. You can use the `./evaluate_utils/success_utils.ipynb` to filter the peptide that meet the geometric requirements. 
 
-The last step, please find the corresponding file in relaxer folder to transfer the generated linear peptide into the cyclic peptide.
+The last step, please find the corresponding file in relaxer folder to transfer the generated linear peptide into the cyclic peptide. You need to specify the acid amoid index to generate the cyclic structure.
 
 ```bash
 relaxer/
