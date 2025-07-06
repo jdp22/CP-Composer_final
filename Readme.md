@@ -2,9 +2,6 @@
 
 Codebase is complete but readme is under construction. Directly contact us if you are in hurry to use our codebase.
 
-## Quick Start
-We offer you a convenient and direct way to generate peptide using the ckpt we provided in `./checkpoint`.
-
 ## Setup
 
 ### Environment
@@ -22,6 +19,29 @@ Don't forget to activate the environment before running the codes:
 ```bash
 conda activate Composer
 ```
+
+## Quick Start
+We offer you a convenient and direct way to generate peptide using the ckpt we provided in `./checkpoint`.
+
+First we should set the condition we want to use:
+```bash
+export condition={CONDITION}
+```
+Here, CONDITION should be a number:
+1: Stapled peptide
+2: Head-to-tail peptide
+3: Disulfide peptide
+4: Bicycle peptide
+
+After that, run the following command:
+
+```bash
+python generate.py --config ./configs/pepbench/test_prompt_codesign.yaml --ckpt ./ckpts/LDM_codesign/version_325/checkpoint/epoch37_step85234.ckpt --gpu 7 --save_dir ./results/${FOLDER NAME}
+```
+
+You will get the linear peptide meeting with geometric constraints.
+
+The last step, please find the corresponding file in relaxer folder to transfer the generated linear peptide into the cyclic peptide.
 
 ### (Optional) Datasets
 
