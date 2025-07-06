@@ -36,7 +36,7 @@ Here, CONDITION should be a number:
 After that, run the following command:
 
 ```bash
-python generate.py --config ./configs/pepbench/test_prompt_codesign.yaml --ckpt ./ckpts/LDM_codesign/version_325/checkpoint/epoch37_step85234.ckpt --gpu 7 --save_dir ./results/${FOLDER NAME}
+python generate.py --config ./configs/pepbench/test_prompt_codesign.yaml --ckpt ./ckpts/LDM_codesign/version_325/checkpoint/epoch37_step85234.ckpt --gpu ${GPU_index}$ --save_dir ./results/${FOLDER NAME}
 ```
 
 You will get the linear peptide meeting with geometric constraints.
