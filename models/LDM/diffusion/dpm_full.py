@@ -17,6 +17,7 @@ from ...dyMEAN.modules.radial_basis import RadialBasis
 from torch.nn import MultiheadAttention
 import random
 import numpy as np
+import os
 
 
 def low_trianguler_inv(L):
@@ -658,6 +659,16 @@ class PromptDPM(FullDPM):
         
         return grouped_tensor,attn_mask
     
+    def get_condition_func(self):
+        condition_value = os.environ.get('CONDITION')
+        if condition_value==1:
+            return self.condition1
+        elif condition_value==2:
+            return self.condition2
+        elif condition_value==3:
+            return self.condition3
+        elif condition_value==4:
+            return self.condition4
     @torch.no_grad()
     def sample(self, H, X, prompt,position_embedding, mask_generate, lengths, atom_embeddings, atom_mask,key_mask,aa_emb_gt,L=None,atom_gt=None,X_true=None, sample_structure=True, sample_sequence=True, pbar=False, energy_func=None, energy_lambda=0.01
     ):
@@ -750,8 +761,10 @@ class PromptDPM(FullDPM):
             # one_hot_vector[4] = 1
             # one_hot_vector = one_hot_vector.unsqueeze(0).repeat(len(sampled_indices),1)
             # atom_full[sampled_indices] = one_hot_vector
+
+            condition_func = self.get_condition_func()
             
-            atom_indices,atom_full,sampled_edges,guidance_edge_attr = self.condition4(atom_gt,batch_ids,mask_generate,X_true,atom_mask)
+            atom_indices,atom_full,sampled_edges,guidance_edge_attr = condition_func(atom_gt,batch_ids,mask_generate,X_true,atom_mask)
 
             atom_full_None = torch.zeros_like(atom_full)
             guidance_edge_attr_None = torch.zeros_like(guidance_edge_attr)

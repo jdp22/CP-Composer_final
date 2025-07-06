@@ -27,7 +27,7 @@ First we should set the condition we want to use:
 ```bash
 export condition={CONDITION}
 ```
-Here, CONDITION should be a number:
+Here, `CONDITION` should be a number:
 1: Stapled peptide
 2: Head-to-tail peptide
 3: Disulfide peptide
