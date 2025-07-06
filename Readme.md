@@ -43,6 +43,15 @@ You will get the linear peptide meeting with geometric constraints.
 
 The last step, please find the corresponding file in relaxer folder to transfer the generated linear peptide into the cyclic peptide.
 
+```bash
+relaxer/
+│   ├── base.py
+│   ├── bicycle.py
+│   ├── cys_to_cys.py
+│   ├── k_to_de.py
+│   ├── head_tail.py 
+```
+
 ### (Optional) Datasets
 
 These datasets are only used for benchmarking models. If you just want to use the trained weights for inferencing on your cases, there is no need to download these datasets.
