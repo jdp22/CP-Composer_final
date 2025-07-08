@@ -20,7 +20,7 @@ Don't forget to activate the environment before running the codes:
 conda activate Composer
 ```
 
-## Quick Start
+## Quick Start(Inference Only)
 We offer you a convenient and direct way to generate peptide using the ckpt we provided in `./checkpoint`.
 
 First we should set the condition we want to use:
@@ -52,7 +52,9 @@ relaxer/
 │   ├── head_tail.py 
 ```
 
-### (Optional) Datasets
+## Training from scratch
+
+### Datasets
 
 These datasets are only used for benchmarking models. If you just want to use the trained weights for inferencing on your cases, there is no need to download these datasets.
 
@@ -114,12 +116,42 @@ python -m scripts.data_process.split --train_index ./datasets/pepbdb/train.txt -
 mv ./datasets/pepbdb/processed/pdbs ./dataset/pepbdb  # re-locate
 ```
 
+## Model Training
+
+Each task requires the following steps:
+
+1. Train autoencoder
+2. Train latent diffusion model
+3. Calculate distribution of latent distances between consecutive residues
+4. Generation & Evaluation
+
+### Load the pre-trained autoencoder
+The pre-trained autoencoder is located at the `./checkpoints/autoencoder.pth`. The weights are directly adopted from paper `Full-atom peptide design with geometric latent diffusion`. 
+
+### Train latent diffusion model
+`bash scripts/train.sh ./configs/pepbench/prompt_finetune/train_codesign.yaml`
+
+### Calculate distribution of latent distances between consecutive residues
+` python setup_latent_guidance_type.py --config ./configs/pepbench/prompt_finetune/setup_prompt_latent_guidance.yaml --ckpt ${CKPT_PATH} `
+
 ## Contact
 Thank you for your interest in our work!
 
 Please let us know if you have any questions:
 * [jdp22@mails.tsinghua.edu.cn](mailto:jdp22@mails.tsinghua.edu.cn)
 * [jdpaerospace2003@gmail.com](mailto:jdpaerospace2003@gmail.com)
+
+## Citations
+```bibtex
+@misc{jiang2025zeroshot,
+    title={Zero-Shot Cyclic Peptide Design with Composable Geometric Conditions},
+    author={Dapeng Jiang and Xiangzhe Kong and Jiaqi Han and Mingyu Li and Rui Jiao and Wenbing Huang and Stefano Ermon and Jianzhu Ma and Yang Liu},
+    year={2025},
+    eprint={2507.04225},
+    archivePrefix={arXiv},
+    primaryClass={cs.LG}
+}
+```
 <!-- ## Quick Links
 
 - [Setup](#setup)
