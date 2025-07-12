@@ -93,7 +93,7 @@ The index of processed data for train/validation splits need to be generated as 
 python -m scripts.data_process.split --train_index datasets/train_valid/train.txt --valid_index datasets/train_valid/valid.txt --processed_dir datasets/train_valid/processed/
 ```
 
-#### PepBDB
+<!-- #### PepBDB
 
 1. Download
 
@@ -114,7 +114,7 @@ tar zxvf ./datasets/pepbdb.tgz -C ./datasets/pepbdb
 python -m scripts.data_process.pepbdb --index ./datasets/pepbdb/peptidelist.txt --out_dir ./datasets/pepbdb/processed
 python -m scripts.data_process.split --train_index ./datasets/pepbdb/train.txt --valid_index ./datasets/pepbdb/valid.txt --test_index ./datasets/pepbdb/test.txt --processed_dir datasets/pepbdb/processed/
 mv ./datasets/pepbdb/processed/pdbs ./dataset/pepbdb  # re-locate
-```
+``` -->
 
 ## Model Training
 
@@ -133,7 +133,7 @@ The pre-trained autoencoder is located at the `./checkpoints/autoencoder.pth`. T
 
 ### Calculate distribution of latent distances between consecutive residues
 ```bash
- python setup_latent_guidance_type.py \
+python setup_latent_guidance_type.py \
 --config ./configs/pepbench/prompt_finetune/setup_prompt_latent_guidance.yaml \
 --ckpt ${CKPT_PATH} 
 ```
