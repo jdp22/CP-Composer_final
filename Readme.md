@@ -129,7 +129,7 @@ Each task requires the following steps:
 The pre-trained autoencoder is located at the `./checkpoints/autoencoder.pth`. The weights are directly adopted from paper `Full-atom peptide design with geometric latent diffusion`. 
 
 ### Train latent diffusion model
-`bash scripts/train.sh ./configs/pepbench/prompt_finetune/train_codesign.yaml`
+`GPU="0" bash scripts/train.sh ./configs/pepbench/prompt_finetune/train_codesign.yaml`
 
 ### Calculate distribution of latent distances between consecutive residues
 ```bash

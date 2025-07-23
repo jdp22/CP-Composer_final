@@ -20,7 +20,7 @@ from transformers import AutoTokenizer, AutoModel
 model_name = "allenai/scibert_scivocab_uncased"
 
 # 指定保存路径
-save_path = "/data4/private/jdp/scibert"
+save_path = "/data/private/jdp/scibert"
 
 # 下载并保存模型
 model = AutoModel.from_pretrained(save_path)
@@ -61,32 +61,6 @@ amino_acid_map = {
     'Y': 19, # Tyrosine
     'V': 20  # Valine
 }
-
-# amino_acid_map = {
-#     'A': 'Alanine',
-#     'R': 'Arginine',
-#     'N': 'Asparagine',
-#     'D': 'Aspartic acid',
-#     'C': 'Cysteine',
-#     'E': 'Glutamic acid',
-#     'Q': 'Glutamine',
-#     'G': 'Glycine',
-#     'H': 'Histidine',
-#     'I': 'Isoleucine',
-#     'L': 'Leucine',
-#     'K': 'Lysine',
-#     'M': 'Methionine',
-#     'F': 'Phenylalanine',
-#     'P': 'Proline',
-#     'S': 'Serine',
-#     'T': 'Threonine',
-#     'W': 'Tryptophan',
-#     'Y': 'Tyrosine',
-#     'V': 'Valine'
-# }
-
-
-
 
 def calculate_covariance_matrix(point_cloud):
     # Calculate the covariance matrix of the point cloud
@@ -298,10 +272,11 @@ class PromptDataset(MMAPDataset):
         # for chain_id, blocks in receptor:
         #     for i in pocket[chain_id]:
         #         rec_blocks.append(blocks[i])
-        if self.text_guidance is None:
-            pp_idx = -3
-        else:
-            pp_idx = -1
+        # if self.text_guidance is None:
+        #     pp_idx = -3
+        # else:
+        #     pp_idx = -1
+        pp_idx = -1
         try:
             pocket_idx = [int(i) for i in self._properties[idx][pp_idx].split(',')]
         except ValueError as e:
@@ -312,15 +287,6 @@ class PromptDataset(MMAPDataset):
         rec_position_ids = [rec_position_ids[i] for i in pocket_idx]
         rec_blocks = [Block.from_tuple(tup) for tup in rec_blocks]
         lig_blocks = [Block.from_tuple(tup) for tup in lig_blocks]
-
-        # for block in lig_blocks:
-        #     block.units = [Atom('CA', [0, 0, 0], 'C')]
-        # if idx == 0:
-        #     print(self._properties[idx])
-        #     print(''.join(VOCAB.abrv_to_symbol(block.abrv) for block in lig_blocks))
-        #     list_blocks_to_pdb([
-        #         rec_blocks, lig_blocks
-        #     ], ['B', 'A'], 'pocket.pdb')
 
         mask = [0 for _ in rec_blocks] + [1 for _ in lig_blocks]
         position_ids = rec_position_ids + [i + 1 for i, _ in enumerate(lig_blocks)]
@@ -360,15 +326,15 @@ class PromptDataset(MMAPDataset):
             L = None
         
         # Use LLM to encode the text guidance
-        if self.text_guidance is None:
-            prompt1 = self._properties[idx][-2]
-            prompt2 = self._properties[idx][-1]
-            atom_sequence = self._properties[idx][-5]
-        else:
+        # if self.text_guidance is None:
+        #     prompt1 = self._properties[idx][-2]
+        #     prompt2 = self._properties[idx][-1]
+        #     atom_sequence = self._properties[idx][-5]
+        # else:
             # prompt = self.text_guidance
-            prompt1 = 'The length between the N-terminal and C-terminal atoms in the peptide is 3.8 Å.'	
-            prompt2 = 'The amino acid at the 7th position is Serine.'
-            atom_sequence = self._properties[idx][-3]
+        prompt1 = 'The length between the N-terminal and C-terminal atoms in the peptide is 3.8 Å.'	
+        prompt2 = 'The amino acid at the 7th position is Serine.'
+        atom_sequence = self._properties[idx][-3]
 
         atom_embedding_list = []
         for i in range(len(atom_sequence)):
@@ -391,10 +357,20 @@ class PromptDataset(MMAPDataset):
                 prompt2 = prompt2['last_hidden_state'].detach().squeeze(0)
                 prompt = {'prompt1':prompt1,'prompt2':prompt2}
                 
+        # item =  {
+        #     'X': X,                                                         # [N, 14] or [N, 4] if backbone_only == True
+        #     'S': torch.tensor(S, dtype=torch.long),                         # [N]
+        #     'prompt': prompt,                 # text embedding ['last_hidden_state', 'pooler_output']
+        #     'position_ids': torch.tensor(position_ids, dtype=torch.long),   # [N]
+        #     'mask': mask,                                                   # [N], 1 for generation
+        #     'atom_mask': atom_mask,                                         # [N, 14] or [N, 4], 1 for having records in the PDB
+        #     'lengths': len(S),
+        #     'atom_gt':atom_embedding
+        # }
+
         item =  {
             'X': X,                                                         # [N, 14] or [N, 4] if backbone_only == True
             'S': torch.tensor(S, dtype=torch.long),                         # [N]
-            'prompt': prompt,                 # text embedding ['last_hidden_state', 'pooler_output']
             'position_ids': torch.tensor(position_ids, dtype=torch.long),   # [N]
             'mask': mask,                                                   # [N], 1 for generation
             'atom_mask': atom_mask,                                         # [N, 14] or [N, 4], 1 for having records in the PDB

@@ -290,7 +290,6 @@ class Trainer:
     ########## Overload these functions below ##########
     # train step, note that batch should be dict/list/tuple/instance. Objects with .to(device) attribute will be automatically moved to the same device as the model
     def train_step(self, batch, batch_idx):
-        breakpoint()
         loss = self.model(batch)
         self.log('Loss/train', loss, batch_idx)
         return loss

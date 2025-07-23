@@ -41,15 +41,22 @@ if __name__ == '__main__':
     for idx in tqdm(df.index):
         peptide_struct_list = []
         peptide_seq_list = []
-        peptide_path_root = os.path.join('/data/private/jdp/PepGLAD/results/condition2_w4_40samples/candidates', idx)
+        peptide_path_root = os.path.join('/data/private/jdp/PepGLAD/results/condition3_w4_40samples/candidates', idx)
         if not os.path.exists(peptide_path_root):
             continue
         peptide_id = df.loc[idx, 'peptide_id']
         for i in range(40):
             peptide_path = os.path.join(peptide_path_root, idx + '_gen_' + str(i)+'.pdb')
+            parser = PDB.PDBParser(QUIET=True)
+            structure = parser.get_structure("protein", peptide_path)
+            chain = structure[0][peptide_id]
+            if len(chain)<4:
+                continue
             peptide_tensor,peptide_seq = read_peptide_pdb(peptide_path,peptide_id)
             peptide_struct_list.append(peptide_tensor)
             peptide_seq_list.append(peptide_seq)
+        if len(peptide_struct_list)==0:
+            continue
         peptide_tensor = torch.stack(peptide_struct_list,dim=0)
         strcut_div_list.append(struct_diversity(peptide_tensor.numpy())[0])
         seq_div_list.append(seq_diversity(peptide_seq_list,0.45)[0])

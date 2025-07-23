@@ -94,7 +94,7 @@ class Prompt_LDMPepDesign(LDMPepDesign):
         )
     
     @oom_decorator
-    def forward(self, X, S,prompt, mask, position_ids, lengths, atom_mask,key_mask,atom_gt, L=None):
+    def forward(self, X, S, mask, position_ids, lengths, atom_mask, atom_gt, L=None):
         '''
             L: [bs, 3, 3], cholesky decomposition of the covariance matrix \Sigma = LL^T
         '''
@@ -134,13 +134,11 @@ class Prompt_LDMPepDesign(LDMPepDesign):
         loss_dict = self.diffusion.forward(
             H_0=H_0,
             X_0=X,
-            prompt=prompt,
             position_embedding=position_embedding,
             mask_generate=mask,
             lengths=lengths,
             atom_embeddings=atom_embeddings,
             atom_mask=atom_mask,
-            key_mask=key_mask,
             L=L,
             atom_gt = atom_gt,
             X_true=X_init,
@@ -161,7 +159,7 @@ class Prompt_LDMPepDesign(LDMPepDesign):
     @torch.no_grad()
     def sample(
         self,
-        X, S,prompt, mask, position_ids, lengths, atom_mask,key_mask,atom_gt, L=None,
+        X, S, mask, position_ids, lengths, atom_mask,atom_gt, L=None,
         sample_opt={
             'pbar': False,
             'energy_func': None,
@@ -219,7 +217,7 @@ class Prompt_LDMPepDesign(LDMPepDesign):
 
         # Not sure what atom_gt is, simply put it as None
         traj = self.diffusion.sample(
-            H_0, X,prompt, position_embedding, mask, lengths, atom_embeddings, atom_mask, key_mask,None,L,atom_gt,X_init, **sample_opt)
+            H_0, X, position_embedding, mask, lengths, atom_embeddings, atom_mask,None,L,atom_gt,X_init, **sample_opt)
         X_0, H_0 = traj[0]
         X_0, H_0 = X_0[mask][:, :self.autoencoder.latent_n_channel], H_0[mask]
 
