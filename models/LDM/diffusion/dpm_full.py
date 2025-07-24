@@ -746,62 +746,43 @@ class PromptDPM(FullDPM):
             atom_full_tmp = torch.zeros((mask_generate.shape[0],atom_gt.shape[1])).to(guidance_edge_attr.device)
             atom_full_tmp[mask_generate] = atom_gt
 
-            # # 获取所有唯一的数字
-            # unique_vals = torch.unique(batch_ids)
-
-            # # 用于存储抽样结果
-            # sampled_indices = []
-
-            # # 对每个数字进行抽样
-            # for val in unique_vals:
-            #     # 找出当前数字的位置
-            #     valid_indices = (batch_ids == val) & mask_generate
-            #     indices = valid_indices.nonzero(as_tuple=True)[0]
-            #     if len(indices)<4:
-            #         continue
-            #     sampled = [indices[0],indices[3]]
-            #     sampled_indices+=sampled
-            # sampled_indices = torch.tensor(sampled_indices).to(guidance_edge_attr.device)
-            # atom_full = torch.zeros((mask_generate.shape[0],atom_gt.shape[1])).to(guidance_edge_attr.device)
-            # one_hot_vector = torch.zeros(20).to(guidance_edge_attr.device)
-            # one_hot_vector[4] = 1
-            # one_hot_vector = one_hot_vector.unsqueeze(0).repeat(len(sampled_indices),1)
-            # atom_full[sampled_indices] = one_hot_vector
-
-            condition_func = self.get_condition_func()
-            
-            atom_indices,atom_full,sampled_edges,guidance_edge_attr = condition_func(atom_gt,batch_ids,mask_generate,X_true,atom_mask)
-
-            atom_full_None = torch.zeros_like(atom_full)
-            guidance_edge_attr_None = torch.zeros_like(guidance_edge_attr)
-
-
-            if self.CADS_sampler:
-                def compute_gamma(t, tau1, tau2):
-                    """
-                    Computes the gamma value based on time t relative to thresholds tau1 and tau2.
-                    """
-                    if t <= tau1:
-                        return 1.0
-                    if t >= tau2:
-                        return 0.0
-                    gamma = (tau2 - t) / (tau2 - tau1)
-                    return gamma
-                gamma = compute_gamma(t,30,70)
-                device = atom_full.device
-                gamma = torch.tensor(gamma,device=device)
-                atom_full[atom_indices] = torch.sqrt(gamma)*atom_full[atom_indices]+0.25*torch.sqrt(1-gamma)*torch.randn_like(atom_full[atom_indices])
-                guidance_edge_attr = torch.sqrt(gamma)*guidance_edge_attr+0.25*torch.sqrt(1-gamma)*torch.randn_like(guidance_edge_attr)
-                
-                
-                
-            prompted_eps_H_pred, prompted_eps_X_pred= self.eps_net(H_t, X_t,position_embedding, ctx_edges, inter_edges, atom_embeddings, atom_mask.float(), mask_generate, beta,atom_gt=atom_full,ctx_edge_attr=ctx_edge_attr, inter_edge_attr=inter_edge_attr,guidance_edges=sampled_edges,guidance_edge_attr = guidance_edge_attr,batch_ids=batch_ids,text_guidance=True)
-
-            
+            atom_full = torch.zeros((mask_generate.shape[0],atom_gt.shape[1])).to(atom_gt.device)
             eps_H, eps_X= self.eps_net(H_t, X_t,position_embedding, ctx_edges, inter_edges, atom_embeddings, atom_mask.float(), mask_generate, beta,atom_gt=atom_full,ctx_edge_attr=ctx_edge_attr, inter_edge_attr=inter_edge_attr,guidance_edges=None,guidance_edge_attr = None,batch_ids=batch_ids,text_guidance=False)
 
-            eps_H = (1+self.w)*prompted_eps_H_pred-self.w*eps_H
-            eps_X = (1+self.w)*prompted_eps_X_pred-self.w*eps_X
+            if self.w != -1:
+                condition_func = self.get_condition_func()
+                
+                atom_indices,atom_full,sampled_edges,guidance_edge_attr = condition_func(atom_gt,batch_ids,mask_generate,X_true,atom_mask)
+
+                # atom_full_None = torch.zeros_like(atom_full)
+                # guidance_edge_attr_None = torch.zeros_like(guidance_edge_attr)
+
+                if self.CADS_sampler:
+                    def compute_gamma(t, tau1, tau2):
+                        """
+                        Computes the gamma value based on time t relative to thresholds tau1 and tau2.
+                        """
+                        if t <= tau1:
+                            return 1.0
+                        if t >= tau2:
+                            return 0.0
+                        gamma = (tau2 - t) / (tau2 - tau1)
+                        return gamma
+                    gamma = compute_gamma(t,30,70)
+                    device = atom_full.device
+                    gamma = torch.tensor(gamma,device=device)
+                    atom_full[atom_indices] = torch.sqrt(gamma)*atom_full[atom_indices]+0.25*torch.sqrt(1-gamma)*torch.randn_like(atom_full[atom_indices])
+                    guidance_edge_attr = torch.sqrt(gamma)*guidance_edge_attr+0.25*torch.sqrt(1-gamma)*torch.randn_like(guidance_edge_attr)
+                    
+                    
+                
+                prompted_eps_H_pred, prompted_eps_X_pred= self.eps_net(H_t, X_t,position_embedding, ctx_edges, inter_edges, atom_embeddings, atom_mask.float(), mask_generate, beta,atom_gt=atom_full,ctx_edge_attr=ctx_edge_attr, inter_edge_attr=inter_edge_attr,guidance_edges=sampled_edges,guidance_edge_attr = guidance_edge_attr,batch_ids=batch_ids,text_guidance=True)
+
+                # atom_full = torch.zeros_like(atom_full)
+                # eps_H, eps_X= self.eps_net(H_t, X_t,position_embedding, ctx_edges, inter_edges, atom_embeddings, atom_mask.float(), mask_generate, beta,atom_gt=atom_full,ctx_edge_attr=ctx_edge_attr, inter_edge_attr=inter_edge_attr,guidance_edges=None,guidance_edge_attr = None,batch_ids=batch_ids,text_guidance=False)
+
+                eps_H = (1+self.w)*prompted_eps_H_pred-self.w*eps_H
+                eps_X = (1+self.w)*prompted_eps_X_pred-self.w*eps_X
             
             if energy_func is not None:
                 with torch.enable_grad():
@@ -859,9 +840,9 @@ class PromptDPM(FullDPM):
             if len(indices)<5:
                 continue
             random_indices = indices[(max(indices)-indices>=4)]
-            indice = random.choice(random_indices)
-            if len(indice)==0:
+            if random_indices.numel()==0:
                 continue
+            indice = random.choice(random_indices)
             hop = random.choice([3,4])
             sampled = [indice,indice+hop]
             positions1.append(indice)
@@ -879,7 +860,7 @@ class PromptDPM(FullDPM):
         atom_full[positions1] = one_hot_vector
 
         # control the type of D/E
-        atom_full = torch.zeros((mask_generate.shape[0],atom_gt.shape[1])).to(atom_gt.device)
+        # atom_full = torch.zeros((mask_generate.shape[0],atom_gt.shape[1])).to(atom_gt.device)
         one_hot_vector = torch.zeros(20).to(atom_gt.device)
         if random.random()<0.5:
             one_hot_vector[3] = 1 # D
@@ -911,6 +892,8 @@ class PromptDPM(FullDPM):
             if len(indices)<=10:
                 continue
             random_indices = indices[(max(indices)-indices>=10)]
+            if not random_indices:
+                continue
             indice = random.choice(random_indices)
             hop = random.choice([3,4])
             sampled = [indice,indice+hop]
