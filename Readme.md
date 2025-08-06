@@ -133,8 +133,8 @@ The pre-trained autoencoder is located at the `./checkpoints/autoencoder.pth`. T
 
 ### Calculate distribution of latent distances between consecutive residues
 ```bash
-python setup_latent_guidance_type.py \
---config ./configs/pepbench/prompt_finetune/setup_prompt_latent_guidance.yaml \
+python setup_latent_guidance.py \
+--config ./configs/pepbench/prompt_finetune/setup_latent_guidance.yaml \
 --ckpt ${CKPT_PATH} 
 ```
 
