@@ -91,7 +91,14 @@ def generate_wrapper(model, sample_opt={}):
             return X, S, ppls
     elif isinstance(model, models.Prompt_LDMPepDesign):
         def wrapper(batch):
-            X, S, ppls = model.sample(batch['X'], batch['S'], batch['prompt'],batch['mask'], batch['position_ids'], batch['lengths'], batch['atom_mask'],batch['key_mask'],L=batch['L'] if 'L' in batch else None,atom_gt = batch['atom_gt'],sample_opt=sample_opt)
+            # Prompt_LDMPepDesign uses hard geometric conditions encoded in
+            # ``atom_gt``. It does not consume a text prompt.
+            X, S, ppls = model.sample(
+                batch['X'], batch['S'], batch['mask'], batch['position_ids'],
+                batch['lengths'], batch['atom_mask'],
+                L=batch['L'] if 'L' in batch else None,
+                atom_gt=batch['atom_gt'], sample_opt=sample_opt
+            )
             return X, S, ppls
     elif isinstance(model, models.LDMPepDesign):
         def wrapper(batch):

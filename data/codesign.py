@@ -14,30 +14,6 @@ from data.converter.list_blocks_to_pdb import list_blocks_to_pdb
 from .format import VOCAB, Block, Atom
 from .mmap_dataset import MMAPDataset
 from .resample import ClusterResampler
-from transformers import AutoTokenizer, AutoModel
-
-# 指定模型名称，例如 "allenai/scibert_scivocab_uncased"
-model_name = "allenai/scibert_scivocab_uncased"
-
-# 指定保存路径
-save_path = "/data/private/jdp/scibert"
-
-# 下载并保存模型
-model = AutoModel.from_pretrained(save_path)
-tokz = AutoTokenizer.from_pretrained(save_path)
-
-model.eval()
-
-# from transformers import AutoTokenizer, AutoModelForCausalLM
-# cache_dir = "/data/private/jdp/Qwen2.5-1.5B-Instruct"
-# model_name = "Qwen/Qwen2.5-1.5B-Instruct"
-# Qw_model = AutoModelForCausalLM.from_pretrained(
-#     model_name,
-#     torch_dtype="auto",
-#     device_map="auto",
-#     cache_dir = cache_dir
-# )
-# Qw_tokenizer = AutoTokenizer.from_pretrained(model_name)
 
 amino_acid_map = {
     'A': 1,  # Alanine
@@ -230,8 +206,15 @@ class PromptDataset(MMAPDataset):
             padding_collate: bool = False,
             cluster: Optional[str] = None,
             use_covariance_matrix: bool = False,
-            text_guidance:str =None
+            text_guidance: Optional[str] = None,
         ) -> None:
+        """Build samples for the hard-conditioned diffusion model.
+
+        ``text_guidance`` remains accepted for compatibility with older
+        configuration files, but text conditioning is not part of this model.
+        The model uses geometric guidance and the sequence one-hot features in
+        ``atom_gt`` instead.
+        """
         super().__init__(mmap_dir, specify_data, specify_index)
         self.mmap_dir = mmap_dir
         self.backbone_only = backbone_only
@@ -242,7 +225,8 @@ class PromptDataset(MMAPDataset):
 
         self.dynamic_idxs = [i for i in range(len(self))]
         self.update_epoch() # should be called every epoch
-        self.text_guidance= text_guidance
+        # Retain the old attribute without loading or encoding any text.
+        self.text_guidance = None
 
     def update_epoch(self):
         if self.resampler is not None:
@@ -272,16 +256,8 @@ class PromptDataset(MMAPDataset):
         # for chain_id, blocks in receptor:
         #     for i in pocket[chain_id]:
         #         rec_blocks.append(blocks[i])
-        # if self.text_guidance is None:
-        #     pp_idx = -3
-        # else:
-        #     pp_idx = -1
         pp_idx = -1
-        try:
-            pocket_idx = [int(i) for i in self._properties[idx][pp_idx].split(',')]
-        except ValueError as e:
-            print(f"Error occurred at idx={idx}")
-            print(f"Error occurred at qdb sequence={self._properties[idx]}")
+        pocket_idx = [int(i) for i in self._properties[idx][pp_idx].split(',') if i]
         rec_position_ids = [i + 1 for i, _ in enumerate(rec_blocks)]
         rec_blocks = [rec_blocks[i] for i in pocket_idx]
         rec_position_ids = [rec_position_ids[i] for i in pocket_idx]
@@ -325,15 +301,8 @@ class PromptDataset(MMAPDataset):
         else:
             L = None
         
-        # Use LLM to encode the text guidance
-        # if self.text_guidance is None:
-        #     prompt1 = self._properties[idx][-2]
-        #     prompt2 = self._properties[idx][-1]
-        #     atom_sequence = self._properties[idx][-5]
-        # else:
-            # prompt = self.text_guidance
-        prompt1 = 'The length between the N-terminal and C-terminal atoms in the peptide is 3.8 Å.'	
-        prompt2 = 'The amino acid at the 7th position is Serine.'
+        # Conditions are represented directly as one-hot amino-acid features;
+        # this model does not use a natural-language prompt.
         atom_sequence = self._properties[idx][-3]
 
         atom_embedding_list = []
@@ -343,31 +312,6 @@ class PromptDataset(MMAPDataset):
             one_hot_vector[amino_acid_map[atom]-1] = 1
             atom_embedding_list.append(one_hot_vector)
         atom_embedding = torch.stack(atom_embedding_list,dim=0)
-        if False:
-            one_hot_vector = torch.zeros(20)
-            one_hot_vector[amino_acid_map[prompt[0]]-1] = 1
-            one_hot_vector = one_hot_vector.unsqueeze(0)
-        else:
-            with torch.no_grad():
-                inputs = tokz(prompt1, return_tensors="pt")
-                prompt1 = model(**inputs)
-                prompt1 = prompt1['last_hidden_state'].detach().squeeze(0)
-                inputs = tokz(prompt2, return_tensors="pt")
-                prompt2 = model(**inputs)
-                prompt2 = prompt2['last_hidden_state'].detach().squeeze(0)
-                prompt = {'prompt1':prompt1,'prompt2':prompt2}
-                
-        # item =  {
-        #     'X': X,                                                         # [N, 14] or [N, 4] if backbone_only == True
-        #     'S': torch.tensor(S, dtype=torch.long),                         # [N]
-        #     'prompt': prompt,                 # text embedding ['last_hidden_state', 'pooler_output']
-        #     'position_ids': torch.tensor(position_ids, dtype=torch.long),   # [N]
-        #     'mask': mask,                                                   # [N], 1 for generation
-        #     'atom_mask': atom_mask,                                         # [N, 14] or [N, 4], 1 for having records in the PDB
-        #     'lengths': len(S),
-        #     'atom_gt':atom_embedding
-        # }
-
         item =  {
             'X': X,                                                         # [N, 14] or [N, 4] if backbone_only == True
             'S': torch.tensor(S, dtype=torch.long),                         # [N]
@@ -395,12 +339,6 @@ class PromptDataset(MMAPDataset):
                     results[key] = torch.tensor(values, dtype=torch.long)
                 elif key == 'S':
                     results[key] = pad_sequence(values, batch_first=True, padding_value=pad_idx)
-                elif key == 'prompt_lengths':
-                    lengths = [x['prompt'].size(0) for x in batch]  # The length of every sequence
-                    results['prompt_lengths'] = torch.tensor(lengths,dtype=torch.long)
-                elif key == 'prompt':
-                    prompts = [x['prompt'] for x in batch]
-                    results['prompt'] = pad_sequence(prompts, batch_first=True, padding_value=0.0)
                 else:
                     # results[key] = pad_sequence(values, batch_first=True, padding_value=0)
                     results[key] = torch.cat(values, dim=0)
@@ -413,28 +351,6 @@ class PromptDataset(MMAPDataset):
                     continue
                 if key == 'lengths':
                     results[key] = torch.tensor(values, dtype=torch.long)
-                elif key == 'prompt_lengths':
-                    lengths = [x['prompt'].size(0) for x in batch]  # The length of every sequence
-                    results['prompt_lengths'] = torch.tensor(lengths,dtype=torch.long)
-                elif key == 'prompt':
-                    key_masks = {}
-                    prompts_dict = {}
-                    prompts = [x['prompt']['prompt1'] for x in batch]
-                    prompts_lengths = torch.tensor([prompt.shape[0] for prompt in prompts])
-                    max_prompt_length = prompts_lengths.max()
-                    key_mask = torch.arange(max_prompt_length).expand(len(batch), max_prompt_length) < prompts_lengths.unsqueeze(1)
-                    key_masks['prompt1_mask'] = key_mask
-                    prompts_dict['prompt1'] = pad_sequence(prompts, batch_first=True, padding_value=0.0)
-
-                    prompts = [x['prompt']['prompt2'] for x in batch]
-                    prompts_lengths = torch.tensor([prompt.shape[0] for prompt in prompts])
-                    max_prompt_length = prompts_lengths.max()
-                    key_mask = torch.arange(max_prompt_length).expand(len(batch), max_prompt_length) < prompts_lengths.unsqueeze(1)
-                    key_masks['prompt2_mask'] = key_mask
-                    prompts_dict['prompt2'] = pad_sequence(prompts, batch_first=True, padding_value=0.0)
-
-                    results['prompt'] = prompts_dict
-                    results['key_mask'] = key_masks
                 else:
                     results[key] = torch.cat(values, dim=0)
             return results
